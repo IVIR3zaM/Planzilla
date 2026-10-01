@@ -34,6 +34,7 @@ budgets: 2 tries per brief · 2 replans per node
 - D23 Network: N01 `pip install uv` if missing; N01,N03 PyPI for `uv sync` of dev tools into `.venv`; N03 fetches https://www.apache.org/licenses/LICENSE-2.0.txt; N02,N09,N10 read-only raw.githubusercontent.com fetches of the request.md prior-art URLs, N01,N02 anonymous `git clone` of github.com/IVIR3zaM/Arboretum into a temp dir (no api.github.com); N01 fails fast if any is unreachable | confirmed · recommend: pre-authorize
 - D24 Engineering rules in an `AGENTS.md` (N03; `CLAUDE.md` = `@AGENTS.md`): strict TDD, stdlib only, pure core (parse, state, waves) with IO in `commands/`, one module per command, KISS | confirmed · recommend: as stated
 - D25 `.claude/skills/{new-plan,run-plan}` and `.claude/agents/{planner,executor,verifier}.md` are bootstrap files that run this plan: no node edits or deletes them; Planzilla's kit, `install` and N16 dogfooding use only `plz-*` names and leave them intact | confirmed (owner)
+- D26 S tier has no N01 preflight node and no final whole-plan check node (S = 1-2 exec nodes, nothing else); M and L keep both, and their final check node runs the plan's full `verify` while executors run `verify_fast`; kit, templates, skills, README and docs/FORMAT.md all say so (overrides L3 for S) | confirmed (owner)
 
 ## Graph
 
@@ -57,7 +58,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N14 | end-to-end CLI run test (S/M/L fixtures) | exec | N05b,N06,N07,N12,N18 | sonnet/opus | 2 | 0 | DONE | |
 | N15 | README | exec | N08b,N09,N10,N11,N13,N14 | sonnet/sonnet | 1 | 0 | DONE | |
 | N16 | dogfood: vendor Planzilla into this repo | exec | N08b,N09,N10,N14 | haiku/haiku | 1 | 0 | DONE | |
-| N17 | plan acceptance | check | N15,N16,N21 | -/opus | 1 | 2 | BLOCKED | fail C6,C7; replans used up |
+| N17 | plan acceptance | check | N15,N16,N21 | -/opus | 1 | 0 | REPLAN | fail C6,C7; owner: D26 |
 | N18 | consolidate brief, log, check, commit onto shared IO | exec | N05a,N06,N07 | sonnet/sonnet | 1 | 0 | DONE | |
 | N19 | kit: real AGENTS block, re-vendor this repo | exec | N16 | sonnet/sonnet | 1 | 0 | DONE | |
 | N20 | state: brief L check nodes just in time, refuse unbriefed checks | exec | N19 | sonnet/opus | 1 | 0 | DONE | |
