@@ -48,7 +48,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N07 | commit + retention | exec | N04,N08a | sonnet/sonnet | 0 | 0 | TODO | |
 | N08a | self-maintaining CLI stub test | exec | N03 | sonnet/haiku | 0 | 1 | TODO | |
 | N08b | install (vendoring, --version) | exec | N08a | sonnet/sonnet | 0 | 1 | TODO | |
-| N09 | kit: roles, templates, Claude Code adapters | exec | N03 | opus/opus | 1 | 0 | VERIFYING | |
+| N09 | kit: roles, templates, Claude Code adapters | exec | N03 | opus/opus | 1 | 0 | DONE | |
 | N10 | kit: plz-new-plan, plz-run-plan skills | exec | N03 | opus/opus | 1 | 0 | DONE | |
 | N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
 | N12 | status, stats, lint | exec | N05 | sonnet/sonnet | 0 | 0 | TODO | |
