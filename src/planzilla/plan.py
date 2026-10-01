@@ -39,6 +39,8 @@ _DECISION_RE = re.compile(r"- (D[0-9]+) (.*)")
 _NODE_HEADING_RE = re.compile(rf"({NODE_ID}) (.+)")
 _CRITERION_RE = re.compile(r"- (C[0-9]+)(?: (.*))?")
 _TAG_RE = re.compile(r"\[([^\]]*)\] ?(.*)")
+_LOG_HEADING_RE = re.compile(r"##+ ")
+_LOG_STAMP_RE = re.compile(r" · [0-9]{4}-[0-9]{2}-[0-9]{2}(?: [0-9:]+)?$")
 _COMMAND_RE = re.compile(r"`([^`]+)`")
 _BACKTICKED_RE = re.compile(r"`([^`]*)`")
 
@@ -480,6 +482,41 @@ def render_graph(plan: Plan) -> str:
             lines[node.line - 1] = format_row(node)
     lines[plan.graph_end : plan.graph_end] = added
     return "\n".join(lines)
+
+
+def render_plan(plan: Plan, status: str, today: str) -> str:
+    """`render_graph` text with only the header `status:` value and `updated:` date replaced."""
+    lines = render_graph(plan).split("\n")
+    lines[plan.header.lines["status"] - 1] = f"status: {status}"
+    lines[plan.header.lines["created"] - 1] = f"created: {plan.header.created} · updated: {today}"
+    return "\n".join(lines)
+
+
+def attempt_key(node: Node) -> str:
+    """The log attempt key of a node (FORMAT §7): `brief`, `replan <r>` or `try <n>`."""
+    if node.status == "BRIEFING":
+        return "brief"
+    if node.status == "REPLAN":
+        return f"replan {node.rp}"
+    return f"try {node.tries + 1 if node.status in ('TODO', 'RETRY') else node.tries}"
+
+
+def append_entry(log_text: str, heading: str, kind: str, text: str, bullets: list[str]) -> str:
+    """`log_text` plus one entry (FORMAT §7); the heading is added only when its key is new."""
+    if not log_text.endswith("\n"):
+        log_text += "\n"
+    last = next(
+        (line for line in reversed(log_text.split("\n")) if _LOG_HEADING_RE.match(line)), ""
+    )
+    if _heading_key(last) != _heading_key(heading):
+        log_text += f"\n{heading}\n"
+    entry = [f"{kind}: {text}", *(f"- {bullet}" for bullet in bullets)]
+    return log_text + "\n".join(entry) + "\n"
+
+
+def _heading_key(heading: str) -> str:
+    """A log heading without its `#`s and its trailing ` · <date>[ <time>]`."""
+    return _LOG_STAMP_RE.sub("", heading.lstrip("#").strip())
 
 
 # --- brief parsing ---------------------------------------------------------
