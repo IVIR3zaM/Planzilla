@@ -57,7 +57,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 | N02 | stdlib launcher formula | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | release workflow with brew gate | exec | N02 | opus/opus | 1 | 0 | DONE | |
 | N04 | README install line | exec | N02 | haiku/haiku | 1 | 0 | DONE | |
-| N05 | open PR into main | exec | N03 | sonnet/haiku | 0 | 0 | TODO | |
+| N05 | open PR into main | exec | N03 | sonnet/haiku | 1 | 0 | DONE | |
 | N06 | dry runs green on GitHub | check | N05 | -/sonnet | 0 | 0 | TODO | |
 | N07 | tap secret and release go-ahead | gate | N04,N06 | -/- | 0 | 0 | TODO | |
 | N08 | merge PR and tag v0.1.0 | exec | N07 | sonnet/- | 0 | 0 | TODO | |
@@ -259,4 +259,11 @@ check: PASS 3/3
 
 ### N03 try 1 · 2026-10-01
 check: PASS 4/4
+verify: PASS
+
+### N05 try 1 · 2026-10-01
+exec: DONE · 618 passed, 1 skipped
+- opened PR #2 (not draft) into main via gh api; Release run appeared
+- no files changed
+check: PASS 3/3
 verify: PASS
