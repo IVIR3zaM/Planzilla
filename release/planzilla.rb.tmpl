@@ -1,17 +1,22 @@
 class Planzilla < Formula
-  include Language::Python::Virtualenv
-
   desc "Plan, run and verify work with AI agents from Markdown plan files"
   homepage "https://github.com/IVIR3zaM/Planzilla"
   url "@URL@"
   sha256 "@SHA256@"
-  version "@VERSION@"
   license "Apache-2.0"
 
   depends_on "python@3.13"
 
   def install
-    virtualenv_install_with_resources
+    libexec.install "src/planzilla"
+    python = Formula["python@3.13"].opt_bin/"python3.13"
+    %w[planzilla plz].each do |name|
+      (bin/name).write <<~SH
+        #!/bin/sh
+        PYTHONPATH="#{libexec}" exec "#{python}" -m planzilla "$@"
+      SH
+      (bin/name).chmod 0755
+    end
   end
 
   test do

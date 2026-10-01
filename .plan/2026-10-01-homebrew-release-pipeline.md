@@ -54,7 +54,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 | id | title | type | deps | model | try | rp | status | note |
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/- | 1 | 0 | DONE | |
-| N02 | stdlib launcher formula | exec | N01 | sonnet/sonnet | 0 | 0 | TODO | |
+| N02 | stdlib launcher formula | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | release workflow with brew gate | exec | N02 | opus/opus | 0 | 0 | TODO | |
 | N04 | README install line | exec | N02 | haiku/haiku | 0 | 0 | TODO | |
 | N05 | open PR into main | exec | N03 | sonnet/haiku | 0 | 0 | TODO | |
@@ -235,3 +235,10 @@ Done when:
 
 ### N01 try 1 · 2026-10-01
 check: PASS 8/8
+
+### N02 try 1 · 2026-10-01
+exec: DONE · 618 passed
+- Formula template is now a stdlib launcher: installs src/planzilla to libexec, writes bin/planzilla and bin/plz exec'ing python@3.13 -m planzilla; no version line or virtualenv
+- render(url, sha256) and main take two args; tests rewritten. .github/workflows/release.yml still passes VERSION (outside Write)
+check: PASS 5/5
+verify: PASS
