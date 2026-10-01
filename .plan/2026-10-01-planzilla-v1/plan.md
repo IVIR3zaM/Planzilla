@@ -54,7 +54,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
 | N12 | status, stats, lint | exec | N05b | sonnet/sonnet | 1 | 0 | DONE | |
 | N13 | serve: live view | exec | N12 | sonnet/sonnet | 1 | 0 | DONE | |
-| N14 | end-to-end CLI run test (S/M/L fixtures) | exec | N05b,N06,N07,N12,N18 | sonnet/opus | 2 | 0 | RUNNING | fail C2,AGENTS.md |
+| N14 | end-to-end CLI run test (S/M/L fixtures) | exec | N05b,N06,N07,N12,N18 | sonnet/opus | 2 | 0 | VERIFYING | fail C2,AGENTS.md |
 | N15 | README | exec | N08b,N09,N10,N11,N13,N14 | sonnet/sonnet | 0 | 0 | TODO | |
 | N16 | dogfood: vendor Planzilla into this repo | exec | N08b,N09,N10,N14 | haiku/haiku | 0 | 0 | TODO | |
 | N17 | plan acceptance | check | N15,N16 | -/opus | 0 | 0 | TODO | |
