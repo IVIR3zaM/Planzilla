@@ -42,18 +42,17 @@ budgets: 2 tries per brief · 2 replans per node
 | N01 | preflight: tools, git, network, permissions | exec | - | haiku/haiku | 1 | 1 | DONE | |
 | N02 | project spec docs/FORMAT.md | exec | N01 | opus/opus | 2 | 0 | DONE | |
 | N03 | scaffold: pyproject, cli dispatcher + stubs, AGENTS.md, LICENSE | exec | N02 | sonnet/haiku | 1 | 0 | DONE | |
-| N04 | plan model + config parsing (both formats) | exec | N03 | opus/sonnet | 1 | 0 | DONE | |
-| N05 | state machine: set, next, resume, waves | exec | N04,N08a | opus/opus | 0 | 0 | TODO | |
-| N06 | brief, log, check commands | exec | N04,N08a | sonnet/sonnet | 0 | 0 | TODO | |
-| N07 | commit + retention | exec | N04,N08a | sonnet/sonnet | 0 | 0 | TODO | |
-| N08a | self-maintaining CLI stub test | exec | N03 | sonnet/haiku | 0 | 1 | TODO | |
-| N08b | install (vendoring, --version) | exec | N08a | sonnet/sonnet | 0 | 1 | TODO | |
-| N09 | kit: roles, templates, Claude Code adapters | exec | N03 | opus/opus | 1 | 0 | VERIFYING | |
-| N10 | kit: plz-new-plan, plz-run-plan skills | exec | N03 | opus/opus | 1 | 0 | VERIFYING | |
-| N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
+| N04 | plan model + config parsing (both formats) | exec | N03 | opus/sonnet | 1 | 0 | RUNNING | |
+| N05 | state machine: set, next, resume, waves | exec | N04 | opus/opus | 0 | 0 | TODO | |
+| N06 | brief, log, check commands | exec | N04 | sonnet/sonnet | 0 | 0 | TODO | |
+| N07 | commit + retention | exec | N04 | sonnet/sonnet | 0 | 0 | TODO | |
+| N08 | install (vendoring, --version) | exec | N03 | sonnet/sonnet | 1 | 0 | REPLAN | blocked: full verify cannot pass from its Write paths: tests/test_cli.py::test_stub_exits_2[install] (N03 file) expects the stub and would run install in the repo cwd; full suite also fails on kit tests owned by parallel N09-N11 |
+| N09 | kit: roles, templates, Claude Code adapters | exec | N03 | opus/opus | 1 | 0 | RUNNING | |
+| N10 | kit: plz-new-plan, plz-run-plan skills | exec | N03 | opus/opus | 1 | 0 | RUNNING | |
+| N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | VERIFYING | |
 | N12 | status, stats, lint | exec | N05 | sonnet/sonnet | 0 | 0 | TODO | |
 | N13 | serve: live view | exec | N12 | sonnet/sonnet | 0 | 0 | TODO | |
 | N14 | end-to-end CLI run test (S/M/L fixtures) | exec | N05,N06,N07,N12 | sonnet/opus | 0 | 0 | TODO | |
-| N15 | README | exec | N08b,N09,N10,N11,N13,N14 | sonnet/sonnet | 0 | 0 | TODO | |
-| N16 | dogfood: vendor Planzilla into this repo | exec | N08b,N09,N10,N14 | haiku/haiku | 0 | 0 | TODO | |
+| N15 | README | exec | N08,N09,N10,N11,N13,N14 | sonnet/sonnet | 0 | 0 | TODO | |
+| N16 | dogfood: vendor Planzilla into this repo | exec | N08,N09,N10,N14 | haiku/haiku | 0 | 0 | TODO | |
 | N17 | plan acceptance | check | N15,N16 | -/opus | 0 | 0 | TODO | |
