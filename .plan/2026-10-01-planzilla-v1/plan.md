@@ -58,7 +58,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N14 | end-to-end CLI run test (S/M/L fixtures) | exec | N05b,N06,N07,N12,N18 | sonnet/opus | 2 | 0 | DONE | |
 | N15 | README | exec | N08b,N09,N10,N11,N13,N14 | sonnet/sonnet | 1 | 0 | DONE | |
 | N16 | dogfood: vendor Planzilla into this repo | exec | N08b,N09,N10,N14 | haiku/haiku | 1 | 0 | DONE | |
-| N17 | plan acceptance | check | N15,N16,N22 | -/opus | 1 | 0 | REPLAN | fail C6,C7; owner: D26 |
+| N17 | plan acceptance | check | N15,N16,N22 | -/opus | 0 | 0 | TODO | |
 | N18 | consolidate brief, log, check, commit onto shared IO | exec | N05a,N06,N07 | sonnet/sonnet | 1 | 0 | DONE | |
 | N19 | kit: real AGENTS block, re-vendor this repo | exec | N16 | sonnet/sonnet | 1 | 0 | DONE | |
 | N20 | state: brief L check nodes just in time, refuse unbriefed checks | exec | N19 | sonnet/opus | 1 | 0 | DONE | |
