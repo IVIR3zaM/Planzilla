@@ -30,7 +30,7 @@ paths only, no commits by agents. Workflow YAML cannot run here, so its local cr
 and its macOS behaviour is proven by the branch's push and PR dry-run runs on GitHub (N06). GitHub is driven
 through `gh api` REST only. The PR is merged and v0.1.0 tagged only after the human's gate: by the human, or by
 the run on the human's go-ahead given at that gate. The tap is written only by the publish job with the
-HOMEBREW_TAP_TOKEN secret, after the brew job passes. Decisions D1-D9.
+HOMEBREW_TAP_TOKEN secret, after the brew job passes. Decisions D1-D10.
 
 Definition of done: verify passes; the Release dry runs for the branch push and for the PR, macOS brew job
 included, are green on GitHub; after the human gate the PR is merged, tag v0.1.0 points at the merged main
@@ -48,6 +48,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 - D7 Work branch is claude/tender-davinci-ej9m0c; each node's commit is pushed (config push per-node), so the dry run runs on the push of N03's commit, and N06 checks that run and the PR's run | confirmed
 - D8 After N03's commit is pushed, N05 opens the PR from claude/tender-davinci-ej9m0c into main through `gh api` REST, so the Release dry run also runs on the PR. At gate N07 the human either merges the PR and pushes tag v0.1.0 themselves, or tells the orchestrator in chat to do it; approving N07 is that go-ahead, and only then N08 merges the PR (if still open, once its checks are green) and pushes tag v0.1.0 (if absent). Nothing is pre-authorized in .plan/config.md | confirmed
 - D9 N07 human gate: the human adds the HOMEBREW_TAP_TOKEN secret (Contents read/write on IVIR3zaM/homebrew-tap); the PR is merged and tag v0.1.0 pushed from the merged main commit (by the human, or by N08 on the human's go-ahead, D8); publish pushes Formula/planzilla.rb straight to the tap's default branch as github-actions[bot], as release.yml:47-59 does | confirmed
+- D10 PR #2 is merged (merge commit 3909535949420d77e52d97399bd2a2b07f3be3db); the human has the egress policy changed to allow refs/tags pushes for this session, so N08 keeps its brief and pushes tag v0.1.0 itself with `git push origin v0.1.0`; the ref is never created by another channel (REST git/refs, releases API) | confirmed
 
 ## Graph
 
@@ -60,7 +61,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 | N05 | open PR into main | exec | N03 | sonnet/haiku | 1 | 0 | DONE | |
 | N06 | dry runs green on GitHub | check | N10 | -/sonnet | 1 | 1 | DONE | |
 | N07 | tap secret and release go-ahead | gate | N04,N06 | -/- | 0 | 0 | DONE | |
-| N08 | merge PR and tag v0.1.0 | exec | N07 | sonnet/- | 0 | 0 | TODO | |
+| N08 | merge PR and tag v0.1.0 | exec | N07 | sonnet/- | 1 | 1 | DONE | |
 | N09 | plan acceptance | check | N08 | -/sonnet | 0 | 0 | TODO | |
 | N10 | brew audit fix and readable brew output | exec | N05 | opus/sonnet | 1 | 0 | DONE | |
 
@@ -242,7 +243,9 @@ another commit, reply BLOCKED. Never move, delete or force-push a tag or branch;
 tap, secrets or the GitHub release (the tag's Release run does those).
 Context: D8 approving N07 is the go-ahead; skip each step the human already did. D9 the tag must point at the
 merged main commit; version 0.1.0 at src/planzilla/__init__.py:3. GraphQL is blocked, so `gh pr merge` fails;
-use `gh api` REST only.
+use `gh api` REST only. D10 PR #2 merged at 3909535949420d77e52d97399bd2a2b07f3be3db; the egress policy now
+allows refs/tags pushes, so push the tag with git only, never by REST git/refs or the releases API; a local
+v0.1.0 already at that commit is pushed as is, one at any other commit means BLOCKED.
 Write: -
 Test first: -
 Done when:
@@ -328,4 +331,23 @@ check: PASS 5/5
 verify: PASS
 
 ### N06 try 1 · 2026-10-01
+check: PASS 5/5
+
+### N08 try 1 · 2026-10-01
+exec: BLOCKED · PR #2 merged (merge commit 3909535949420d77e52d97399bd2a2b07f3be3db) and local tag v0.1.0 created there, but git push of the tag is denied by the egress proxy (403: only refs/heads/* pushes permitted); tag absent on origin, not worked around
+
+### N08 replan 1 · 2026-10-01
+plan: ASK D10
+- Cause: PR #2 merged at 3909535; tag v0.1.0 push denied by the egress proxy (403, only refs/heads/* pushes permitted), and the proxy policy says not to route around denials, so no REST ref creation
+- Added D10 proposed: the human pushes v0.1.0 at 3909535 (recommend), or gets refs/tags pushes allowed (alt); brief unchanged until answered
+- Not added as a gate node: an 11th node would force the M to L move (FORMAT §1) for one human step
+plan: REPLANNED
+- Cause: D10 answered alt, the human had the egress policy changed to allow refs/tags pushes for this session
+- D10 confirmed; Do, Write and criteria unchanged; Context restates D10: push the tag with git only (no REST ref creation), push a local v0.1.0 at 3909535 as is, BLOCKED if it sits at another commit
+- Intent constraints now cite Decisions D1-D10
+
+### N08 try 1 · 2026-10-01
+exec: DONE · 618 passed, 1 skipped
+- No files changed: PR #2 was already merged (3909535) and tag v0.1.0 already on origin at that commit; Release run started
+- Skipped merge and tag push since both already done
 check: PASS 5/5
