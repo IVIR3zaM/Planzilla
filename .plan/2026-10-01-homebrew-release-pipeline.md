@@ -58,10 +58,11 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 | N03 | release workflow with brew gate | exec | N02 | opus/opus | 1 | 0 | DONE | |
 | N04 | README install line | exec | N02 | haiku/haiku | 1 | 0 | DONE | |
 | N05 | open PR into main | exec | N03 | sonnet/haiku | 1 | 0 | DONE | |
-| N06 | dry runs green on GitHub | check | N05 | -/sonnet | 0 | 0 | TODO | |
+| N06 | dry runs green on GitHub | check | N10 | -/sonnet | 0 | 1 | TODO | |
 | N07 | tap secret and release go-ahead | gate | N04,N06 | -/- | 0 | 0 | TODO | |
 | N08 | merge PR and tag v0.1.0 | exec | N07 | sonnet/- | 0 | 0 | TODO | |
 | N09 | plan acceptance | check | N08 | -/sonnet | 0 | 0 | TODO | |
+| N10 | brew audit fix and readable brew output | exec | N05 | opus/sonnet | 1 | 0 | DONE | |
 
 ## N01 preflight
 Do: Confirm the starting point: verify passes on the untouched tree; gh is authenticated with push rights on
@@ -169,20 +170,55 @@ Done when:
   says merging and tagging v0.1.0 wait for the human gate.
 - C4 [cmd] `uv run pytest -q`
 
+## N10 brew audit fix and readable brew output
+Do: Make the macOS brew dry run pass `brew audit --strict` and make its outcome readable over REST. In the
+formula template, get the interpreter with `which("python3.13")` instead of `Formula["python@3.13"].opt_bin`
+(release/planzilla.rb.tmpl:12), test first. In the brew job of .github/workflows/release.yml, run brew install,
+brew test and brew audit so each command's combined output is also saved; when one fails, emit its last 30
+output lines as `::error title=<brew install|brew test|brew audit>::<line>` (escape `%`, CR, LF) and fail
+the step. After all three pass, emit `::notice title=brew version::` (first line of `brew --version`),
+`::notice title=formula url::` (the rendered formula's url line), `::notice title=planzilla version::`
+(output of the installed `planzilla --version`) and `::notice title=brew audit::no problems`.
+Context: D1 the wrappers exec python@3.13 `-m planzilla` with libexec on PYTHONPATH; superenv puts each
+dependency's opt_bin on PATH (Homebrew/brew Library/Homebrew/extend/ENV/super.rb:193), so `which` yields the
+stable opt path. Current Homebrew's style cop Homebrew/FormulaPathMethods (Library/Homebrew/rubocops/
+formula_path_methods.rb) flags `Formula["x"].opt_bin` in tap formulae. Homebrew drops its own per-problem
+annotations for files outside GITHUB_WORKSPACE (Library/Homebrew/utils/github/actions.rb:106-113), and job logs
+cannot be fetched from this session (egress policy denies the log host); check-run annotations can be
+(`gh api repos/IVIR3zaM/Planzilla/check-runs/<job id>/annotations`). D3 job ids build, brew, publish stay;
+D4 brew still installs the local sdist from its file:// url in the throwaway tap. Leave build, publish,
+triggers and permissions (release.yml:1-50, 80-143) unchanged. Test assertion to update:
+tests/test_render_formula.py:54.
+Read: `release/planzilla.rb.tmpl`, `tests/test_render_formula.py`, `.github/workflows/release.yml`
+Write: `release/planzilla.rb.tmpl`, `tests/test_render_formula.py`, `.github/workflows/release.yml`
+Test first: the rendered formula contains `which("python3.13")` and no `Formula[`; see it fail before
+editing the template.
+Done when:
+- C1 [cmd] `uv run pytest -q tests/test_render_formula.py`
+- C2 [cmd] `f=release/planzilla.rb.tmpl; ! grep -nE 'Formula\[|\.opt_(bin|lib|libexec|include|prefix)' $f && grep -qF 'which("python3.13")' $f && python3 release/render_formula.py file:///tmp/planzilla-0.1.0.tar.gz "$(python3 -c 'print("a"*64)')" | ruby -c`
+- C3 [cmd] `f=.github/workflows/release.yml; for t in 'brew version' 'formula url' 'planzilla version' 'brew audit'; do grep -qF "::notice title=$t::" $f || exit 1; done; grep -qF '::error title=' $f && grep -q 'brew audit --strict' $f && grep -q -- '--build-from-source' $f`
+- C4 [cmd] `python3 -c "import yaml; j=yaml.safe_load(open('.github/workflows/release.yml'))['jobs']; assert sorted(j)==['brew','build','publish']; assert j['brew']['runs-on']=='macos-latest' and 'build' in str(j['brew']['needs']); assert 'brew' in str(j['publish']['needs']) and 'refs/tags/v' in j['publish']['if']"`
+- C5 [review] In the brew job a failing install, test or audit still fails the step (no pipe or `|| true`
+  masks the exit code) after emitting its `::error` lines; the notices come only after all three passed;
+  `git diff` of release.yml touches only the brew job; the template change is the python line only.
+- C6 [cmd] `uv run pytest -q`
+
 ## N06 dry runs green on GitHub
-Do: Confirm on GitHub that the Release dry runs completed green: the push run for the N03 commit (the last
-commit touching release/ or the workflow) and the latest pull_request run of the PR. In both, build and brew
-succeeded and publish was skipped; in the push run every brew step succeeded. C1 and C4 each wait up to 14 minutes.
+Do: Confirm on GitHub that both Release dry runs for the last commit touching release/ or the workflow (N10's)
+completed green: its push run and its pull_request run. In both, build and brew succeeded and publish was
+skipped; in the push run every brew step succeeded and the brew job's annotations show a file:// formula url,
+planzilla version 0.1.0 and an audit with no problems. C1 and C4 each wait up to 14 minutes. On failure, C5
+prints the brew job's annotations, whose `::error` lines name the failing brew command's output.
 Context: D3 job ids build, brew, publish; D4 brew gates on the local sdist; D7 branch
-claude/tender-davinci-ej9m0c, pushed per node; D8 the PR was opened by N05. Use only `gh api` REST.
+claude/tender-davinci-ej9m0c, pushed per node; D8 the PR (opened by N05) gets a pull_request run per push.
+Job logs cannot be fetched here (egress policy); a job id is its check-run id for the annotations endpoint.
+Use only `gh api` REST.
 Done when:
 - C1 [cmd] `sha=$(git log -1 --format=%H -- release .github/workflows/release.yml); for i in $(seq 84); do s=$(gh api "repos/IVIR3zaM/Planzilla/actions/runs?head_sha=$sha&event=push" --jq '[.workflow_runs[]|select(.name=="Release")][0]|.status+" "+(.conclusion//"")'); [ "${s%% *}" = completed ] && break; sleep 10; done; test "$s" = "completed success"`
 - C2 [cmd] `sha=$(git log -1 --format=%H -- release .github/workflows/release.yml); id=$(gh api "repos/IVIR3zaM/Planzilla/actions/runs?head_sha=$sha&event=push" --jq '[.workflow_runs[]|select(.name=="Release")][0].id'); gh api repos/IVIR3zaM/Planzilla/actions/runs/$id/jobs --jq '[.jobs[]|.name+"="+.conclusion]|sort|join(" ")' | grep -qx 'brew=success build=success publish=skipped'`
 - C3 [cmd] `sha=$(git log -1 --format=%H -- release .github/workflows/release.yml); id=$(gh api "repos/IVIR3zaM/Planzilla/actions/runs?head_sha=$sha&event=push" --jq '[.workflow_runs[]|select(.name=="Release")][0].id'); test "$(gh api repos/IVIR3zaM/Planzilla/actions/runs/$id/jobs --jq '[.jobs[]|select(.name=="brew")|.steps[].conclusion]|unique|join(" ")')" = success`
-- C4 [cmd] `for i in $(seq 84); do r=$(gh api 'repos/IVIR3zaM/Planzilla/actions/runs?event=pull_request&branch=claude/tender-davinci-ej9m0c' --jq '[.workflow_runs[]|select(.name=="Release")][0]|"\(.id) \(.status) \(.conclusion)"'); [ "$(echo "$r" | cut -d' ' -f2)" = completed ] && break; sleep 10; done; test "${r#* }" = "completed success" && gh api repos/IVIR3zaM/Planzilla/actions/runs/${r%% *}/jobs --jq '[.jobs[]|.name+"="+.conclusion]|sort|join(" ")' | grep -qx 'brew=success build=success publish=skipped'`
-- C5 [review] The push run's brew job log (`gh api repos/IVIR3zaM/Planzilla/actions/jobs/<job id>/logs`) shows
-  the formula installed from a file:// url, `brew test` running `planzilla --version` with 0.1.0, and
-  `brew audit --strict` reporting no problems.
+- C4 [cmd] `sha=$(git log -1 --format=%H -- release .github/workflows/release.yml); for i in $(seq 84); do r=$(gh api "repos/IVIR3zaM/Planzilla/actions/runs?head_sha=$sha&event=pull_request" --jq '[.workflow_runs[]|select(.name=="Release")][0]|"\(.id) \(.status) \(.conclusion)"'); [ "$(echo "$r" | cut -d' ' -f2)" = completed ] && break; sleep 10; done; test "${r#* }" = "completed success" && gh api repos/IVIR3zaM/Planzilla/actions/runs/${r%% *}/jobs --jq '[.jobs[]|.name+"="+.conclusion]|sort|join(" ")' | grep -qx 'brew=success build=success publish=skipped'`
+- C5 [cmd] `sha=$(git log -1 --format=%H -- release .github/workflows/release.yml); id=$(gh api "repos/IVIR3zaM/Planzilla/actions/runs?head_sha=$sha&event=push" --jq '[.workflow_runs[]|select(.name=="Release")][0].id'); j=$(gh api repos/IVIR3zaM/Planzilla/actions/runs/$id/jobs --jq '.jobs[]|select(.name=="brew").id'); a=$(gh api "repos/IVIR3zaM/Planzilla/check-runs/$j/annotations?per_page=100" --jq '.[]|"\(.title)=\(.message)"'); { echo "$a" | grep -q '^formula url=.*file://' && echo "$a" | grep -q '^planzilla version=.*0\.1\.0' && echo "$a" | grep -qx 'brew audit=no problems'; } || { echo "$a"; exit 1; }`
 
 ## N07 tap secret and release go-ahead
 Do: The human takes the outward-facing release decision no agent may take alone: add the tap token secret,
@@ -266,4 +302,27 @@ exec: DONE · 618 passed, 1 skipped
 - opened PR #2 (not draft) into main via gh api; Release run appeared
 - no files changed
 check: PASS 3/3
+verify: PASS
+
+### N06 try 1 · 2026-10-01
+check: FAIL C1,C2,C3,C4
+- C1 exit 1:
+- C2 exit 1:
+- C3 exit 1:
+- C4 exit 1:
+
+### N06 replan 1 · 2026-10-01
+plan: REPLANNED +N10
+- Cause: both Release dry runs (push 36886729735, PR 36887042266) failed in the brew job at brew audit --strict with '1 problem in 1 formula detected.'; build passed, publish skipped
+- The problem text is unreadable here: job log hosts are denied by egress policy, and Homebrew drops per-problem annotations for files outside GITHUB_WORKSPACE (utils/github/actions.rb:106-113)
+- Likely cause: current Homebrew cop Homebrew/FormulaPathMethods flags Formula["python@3.13"].opt_bin at release/planzilla.rb.tmpl:12
+- Added N10 (deps N05, before N06): template uses which("python3.13"), test first; brew job emits failing brew output as ::error annotations and success facts as ::notice annotations
+- N06 now checks the push and PR runs of N10's commit by head_sha, and its C5 is a [cmd] on the brew job's annotations (prints them on failure) instead of a log review
+
+### N10 try 1 · 2026-10-01
+exec: DONE · 618 passed, 1 skipped
+- Template uses which("python3.13"); test asserts it and no Formula[
+- brew job: run_brew saves each command's combined output to a temp file, prints it, on failure emits last 30 lines as ::error title=<cmd>:: (%/CR/LF escaped) and exits with its status; notices after all three pass
+- No pipes around brew commands; output captured via redirect so exit codes are kept; planzilla version read from $(brew --prefix)/bin/planzilla
+check: PASS 5/5
 verify: PASS

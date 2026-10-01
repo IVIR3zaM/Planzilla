@@ -9,7 +9,7 @@ class Planzilla < Formula
 
   def install
     libexec.install "src/planzilla"
-    python = Formula["python@3.13"].opt_bin/"python3.13"
+    python = which("python3.13")
     %w[planzilla plz].each do |name|
       (bin/name).write <<~SH
         #!/bin/sh

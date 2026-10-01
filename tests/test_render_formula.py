@@ -51,7 +51,8 @@ def test_launcher_install():
     assert 'libexec.install "src/planzilla"' in out
     assert "%w[planzilla plz]" in out
     assert "(bin/name).write" in out
-    assert 'Formula["python@3.13"].opt_bin' in out
+    assert 'which("python3.13")' in out
+    assert "Formula[" not in out
     assert '-m planzilla "$@"' in out
     assert 'PYTHONPATH="#{libexec}"' in out
 

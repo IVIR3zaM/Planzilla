@@ -69,13 +69,49 @@ jobs:
 
       - name: Install, test and audit the formula in a throwaway tap
         run: |
+          # esc TEXT: escape %, CR and LF for a workflow command message.
+          esc() {
+            msg="$1"
+            pct='%'
+            msg="${msg//"${pct}"/%25}"
+            msg="${msg//$'\r'/%0D}"
+            msg="${msg//$'\n'/%0A}"
+            printf '%s' "${msg}"
+          }
+          # run_brew TITLE CMD...: save combined output to a file and print it; on failure emit
+          # its last 30 lines as ::error annotations and fail the step with the command's status.
+          run_brew() {
+            title="$1"
+            shift
+            log="$(mktemp)"
+            if "$@" > "${log}" 2>&1; then
+              cat "${log}"
+            else
+              status=$?
+              cat "${log}"
+              tail -n 30 "${log}" > "${log}.tail"
+              while IFS= read -r line || [ -n "${line}" ]; do
+                echo "::error title=${title}::$(esc "${line}")"
+              done < "${log}.tail"
+              exit "${status}"
+            fi
+          }
+
           brew tap-new planzilla-ci/local
           tap="$(brew --repository planzilla-ci/local)"
           mkdir -p "${tap}/Formula"
           cp planzilla.rb "${tap}/Formula/planzilla.rb"
-          brew install --build-from-source planzilla-ci/local/planzilla
-          brew test planzilla-ci/local/planzilla
-          brew audit --strict planzilla-ci/local/planzilla
+          run_brew "brew install" brew install --build-from-source planzilla-ci/local/planzilla
+          run_brew "brew test" brew test planzilla-ci/local/planzilla
+          run_brew "brew audit" brew audit --strict planzilla-ci/local/planzilla
+
+          brew_version="$(brew --version)"
+          formula_url="$(sed -n 's/^[[:space:]]*\(url .*\)$/\1/p' planzilla.rb)"
+          planzilla_version="$("$(brew --prefix)/bin/planzilla" --version)"
+          echo "::notice title=brew version::$(esc "${brew_version%%$'\n'*}")"
+          echo "::notice title=formula url::$(esc "${formula_url}")"
+          echo "::notice title=planzilla version::$(esc "${planzilla_version}")"
+          echo "::notice title=brew audit::no problems"
 
   publish:
     runs-on: ubuntu-latest
