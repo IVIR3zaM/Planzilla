@@ -55,7 +55,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/- | 1 | 0 | DONE | |
 | N02 | stdlib launcher formula | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
-| N03 | release workflow with brew gate | exec | N02 | opus/opus | 1 | 0 | RUNNING | |
+| N03 | release workflow with brew gate | exec | N02 | opus/opus | 1 | 0 | DONE | |
 | N04 | README install line | exec | N02 | haiku/haiku | 1 | 0 | DONE | |
 | N05 | open PR into main | exec | N03 | sonnet/haiku | 0 | 0 | TODO | |
 | N06 | dry runs green on GitHub | check | N05 | -/sonnet | 0 | 0 | TODO | |
@@ -259,3 +259,4 @@ check: PASS 3/3
 
 ### N03 try 1 · 2026-10-01
 check: PASS 4/4
+verify: PASS
