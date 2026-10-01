@@ -63,4 +63,4 @@ budgets: 2 tries per brief · 2 replans per node
 | N19 | kit: real AGENTS block, re-vendor this repo | exec | N16 | sonnet/sonnet | 1 | 0 | DONE | |
 | N20 | state: brief L check nodes just in time, refuse unbriefed checks | exec | N19 | sonnet/opus | 1 | 0 | DONE | |
 | N21 | kit: preflight covers auth, network, permissions; re-vendor this repo | exec | N20 | sonnet/opus | 1 | 0 | DONE | |
-| N22 | kit and spec: D26 tier rules; re-vendor this repo | exec | N21 | sonnet/opus | 1 | 0 | VERIFYING | |
+| N22 | kit and spec: D26 tier rules; re-vendor this repo | exec | N21 | sonnet/opus | 2 | 0 | RUNNING | fail AGENTS.md |
