@@ -116,6 +116,8 @@ def test_illegal_transition_exits_2_and_keeps_bytes(tmp_path, capsys):
     "rows, args, message",
     [
         ([row("N01")], ["N01", "RUNNING"], "no brief"),
+        ([row("N01", type="check", model="-/opus")], ["N01", "VERIFYING"], "no brief"),
+        ([row("N01", type="check", model="-/opus")], ["N01", "RETRY", "--note", "x"], "no brief"),
         ([row("N01", "RUNNING", t=1), row("N02", deps="N01")], ["N02", "BRIEFING"], "deps"),
         ([row("N01")], ["N09", "RUNNING"], "unknown node N09"),
         ([row("N01", "DONE", t=1)], ["N01", "DONE"], "illegal transition"),
@@ -129,6 +131,13 @@ def test_failed_preconditions_exit_2_and_keep_bytes(tmp_path, capsys, rows, args
     assert (code, out) == (2, "")
     assert err.startswith("error: ") and message in err
     assert (plan / "plan.md").read_bytes() == before
+
+
+def test_unbriefed_check_node_goes_to_briefing_only(tmp_path, capsys):
+    plan = make_l(tmp_path, [row("N01", type="check", model="-/opus")])
+    code, out, err = plz_set(capsys, plan, "N01", "BRIEFING")
+    assert (code, err) == (0, "")
+    assert out == "N01 BRIEFING try 0 rp 0 · dispatch plz-planner opus\n"
 
 
 def test_draft_plan_exits_2(tmp_path, capsys):

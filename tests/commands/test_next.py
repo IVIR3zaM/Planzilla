@@ -94,6 +94,15 @@ def test_lines_match_format_byte_for_byte(tmp_path, capsys):
     assert (plan / "plan.md").read_bytes() == before
 
 
+def test_unbriefed_check_node_is_briefed_just_in_time(tmp_path, capsys):
+    plan = make_plan(tmp_path, [row("N01", "TODO", type="check")], config="models: planner=big\n")
+    before = (plan / "plan.md").read_bytes()
+    assert plz_next(capsys, plan) == (0, "N01 brief big\n", "")
+    assert (plan / "plan.md").read_bytes() == before
+    (plan / "nodes" / "N01.md").write_text("# N01 t N01\nDo: x.\nDone when:\n- C1 [review] x\n")
+    assert plz_next(capsys, plan) == (0, "N01 verify sonnet\n", "")
+
+
 def test_nothing_printed_when_all_done(tmp_path, capsys):
     plan = make_plan(tmp_path, diamond(dict.fromkeys(DIAMOND, "DONE")), status="DONE")
     assert plz_next(capsys, plan) == (0, "", "")

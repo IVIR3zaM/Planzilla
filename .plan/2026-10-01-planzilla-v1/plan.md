@@ -60,5 +60,5 @@ budgets: 2 tries per brief · 2 replans per node
 | N17 | plan acceptance | check | N15,N16,N21 | -/opus | 0 | 2 | TODO | |
 | N18 | consolidate brief, log, check, commit onto shared IO | exec | N05a,N06,N07 | sonnet/sonnet | 1 | 0 | DONE | |
 | N19 | kit: real AGENTS block, re-vendor this repo | exec | N16 | sonnet/sonnet | 1 | 0 | DONE | |
-| N20 | state: brief L check nodes just in time, refuse unbriefed checks | exec | N19 | sonnet/opus | 1 | 0 | VERIFYING | |
-| N21 | kit: preflight covers auth, network, permissions; re-vendor this repo | exec | N20 | sonnet/opus | 0 | 0 | TODO | |
+| N20 | state: brief L check nodes just in time, refuse unbriefed checks | exec | N19 | sonnet/opus | 1 | 0 | DONE | |
+| N21 | kit: preflight covers auth, network, permissions; re-vendor this repo | exec | N20 | sonnet/opus | 1 | 0 | RUNNING | |

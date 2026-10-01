@@ -97,16 +97,16 @@ def transition(
     if old == status and old in IN_FLIGHT:
         return to(old)
     if old == "TODO":
-        if kind == "exec" and status == "BRIEFING" and not facts.brief:
+        if kind in ("exec", "check") and status == "BRIEFING" and not facts.brief:
             return to("BRIEFING")
         if kind == "exec" and status == "RUNNING":
             if not facts.brief:
                 raise StateError(f"illegal transition {node.id} TODO -> RUNNING: no brief")
             return to("RUNNING", t + 1)
-        if kind == "check" and status == "VERIFYING":
-            return verified(t + 1)
-        if kind == "check" and status == "RETRY":
-            return replan(t + 1)
+        if kind == "check" and status in ("VERIFYING", "RETRY"):
+            if not facts.brief:
+                raise StateError(f"illegal transition {node.id} TODO -> {status}: no brief")
+            return verified(t + 1) if status == "VERIFYING" else replan(t + 1)
         if kind == "gate" and status == "DONE":
             return to("DONE", text=cleared)
         if kind == "gate" and status == "REPLAN":
@@ -266,6 +266,8 @@ def action(node: Node, facts: Facts) -> str | None:
     if node.type == "exec":
         return "exec" if facts.brief else "brief"
     if node.type == "check":
+        if not facts.brief:
+            return "brief"
         return "check" if facts.cmd else "verify"
     return "ask"
 

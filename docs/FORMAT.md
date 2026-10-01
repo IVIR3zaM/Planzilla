@@ -149,9 +149,10 @@ disjointness rule and the live view. A cycle is a plan error naming the cycle (`
 | BLOCKED | budgets used up; human decides | no | blocked |
 
 **Ready.** A node is ready when all its deps are DONE. `next` (§9) maps ready nodes to actions:
-TODO exec without brief → `brief`; TODO exec with brief, RETRY, RUNNING → `exec`; TODO check with any `[cmd]`
-criterion → `check`; TODO check without → `verify`; VERIFYING → `verify`; BRIEFING → `brief`; REPLAN → `replan`;
-WAITING, and TODO gate → `ask`. DONE and BLOCKED give nothing. In-flight statuses map to their own action again
+TODO exec or check without brief → `brief`; TODO exec with brief, RETRY, RUNNING → `exec`; TODO check with brief
+and any `[cmd]` criterion → `check`; TODO check with brief, without → `verify`; VERIFYING → `verify`; BRIEFING →
+`brief`; REPLAN → `replan`; WAITING, and TODO gate → `ask`. DONE and BLOCKED give nothing. Gates are not briefed
+just in time: the planner writes a gate's brief with the outline (req 7). In-flight statuses map to their own action again
 because `next` is only called when nothing is in flight (§14): an in-flight status there means a stop
 interrupted it.
 
@@ -170,7 +171,7 @@ and `r` columns: `+1`, `0` (reset) or `·` (unchanged). Note column: the note af
 
 | # | from | event | command | to | t | r | note |
 |---|------|-------|---------|----|---|---|------|
-| 1 | TODO (exec, no brief) | `next`: brief | `set <id> BRIEFING` | BRIEFING | · | · | · |
+| 1 | TODO (exec or check, no brief) | `next`: brief | `set <id> BRIEFING` | BRIEFING | · | · | · |
 | 2 | BRIEFING | planner `BRIEFED` | `set <id> TODO` | TODO | · | · | ∅ |
 | 3 | BRIEFING | planner `ASK <id>: D7` | `set <id> WAITING --note "ask: D7"` | WAITING | · | · | ask: D7 |
 | 4 | TODO (exec, brief) or RETRY | `next`: exec | `set <id> RUNNING` | RUNNING | +1 | · | · |
@@ -179,10 +180,10 @@ and `r` columns: `+1`, `0` (reset) or `·` (unchanged). Note column: the note af
 | 7 | RUNNING | executor `DONE`, `check` FAIL, `t < B` | `set <id> RETRY --note "fail C1"` | RETRY | · | · | fail C1 |
 | 8 | RUNNING | executor `DONE`, `check` FAIL, `t ≥ B` | `set <id> RETRY --note "fail C1"` | REPLAN | · | +1 | fail C1 |
 | 9 | RUNNING | executor `BLOCKED <id>: <why>` | `set <id> REPLAN --note "blocked: <why>"` | REPLAN | · | +1 | blocked: <why> |
-| 10 | TODO (check) | `check` PASS, verifier needed | `set <id> VERIFYING` | VERIFYING | +1 | · | · |
-| 11 | TODO (check) | `check` PASS, no verifier needed | `set <id> VERIFYING` | DONE | +1 | · | ∅ |
-| 12 | TODO (check) | `check` FAIL | `set <id> RETRY --note "fail C1"` | REPLAN | +1 | +1 | fail C1 |
-| 13 | TODO (check, no `[cmd]`) | `next`: verify | `set <id> VERIFYING` | VERIFYING | +1 | · | · |
+| 10 | TODO (check, brief) | `check` PASS, verifier needed | `set <id> VERIFYING` | VERIFYING | +1 | · | · |
+| 11 | TODO (check, brief) | `check` PASS, no verifier needed | `set <id> VERIFYING` | DONE | +1 | · | ∅ |
+| 12 | TODO (check, brief) | `check` FAIL | `set <id> RETRY --note "fail C1"` | REPLAN | +1 | +1 | fail C1 |
+| 13 | TODO (check, brief, no `[cmd]`) | `next`: verify | `set <id> VERIFYING` | VERIFYING | +1 | · | · |
 | 14 | VERIFYING | verifier `PASS`, no human criteria | `set <id> DONE` | DONE | · | · | ∅ |
 | 15 | VERIFYING | verifier `PASS`, human criteria C5,C6 | `set <id> DONE` | WAITING | · | · | ask: C5,C6 |
 | 16 | VERIFYING (exec) | verifier `FAIL <id>: C2`, `t < B` | `set <id> RETRY --note "fail C2"` | RETRY | · | · | fail C2 |
@@ -206,7 +207,8 @@ and `r` columns: `+1`, `0` (reset) or `·` (unchanged). Note column: the note af
 Every other (from, to) pair is illegal: `set` exits 2 and leaves every file byte-identical. DONE is final.
 Rows 6, 11, 15, 8, 12, 17, 22 and 25 are redirects: the command names the requested status, `set` applies the
 rule and prints the status it wrote. Leaving TODO or RETRY requires all deps DONE, and `set <id> RUNNING`
-from TODO requires the brief to exist (exit 2 otherwise).
+from TODO requires the brief to exist (exit 2 otherwise); so do `VERIFYING` and `RETRY` from TODO on a check
+node, which can only go to BRIEFING until it is briefed.
 `--note` replaces the note; without it the note follows the table.
 
 ## §6 Briefs and criteria

@@ -34,6 +34,7 @@ def node(
 ROWS = [
     # row, node kwargs, facts, requested, --note, expected (status, t, r, note)
     (1, dict(status="TODO"), Facts(), "BRIEFING", None, ("BRIEFING", 0, 0, "")),
+    (1, dict(type="check"), Facts(), "BRIEFING", None, ("BRIEFING", 0, 0, "")),
     (2, dict(status="BRIEFING", note="x"), Facts(), "TODO", None, ("TODO", 0, 0, "")),
     (3, dict(status="BRIEFING"), Facts(), "WAITING", "ask: D7", ("WAITING", 0, 0, "ask: D7")),
     (4, dict(status="TODO"), BRIEF, "RUNNING", None, ("RUNNING", 1, 0, "")),
@@ -238,6 +239,9 @@ ILLEGAL = [
     (dict(status="TODO"), BRIEF, "BRIEFING"),
     (dict(status="TODO", type="check"), BRIEF, "RUNNING"),
     (dict(status="TODO", type="gate"), Facts(), "VERIFYING"),
+    (dict(status="TODO", type="check"), Facts(), "VERIFYING"),
+    (dict(status="TODO", type="check"), Facts(), "RETRY"),
+    (dict(status="TODO", type="check"), BRIEF, "BRIEFING"),
     (dict(status="TODO"), BRIEF, "RETRY"),
     (dict(status="TODO"), BRIEF, "TODO"),
     (dict(status="RETRY", t=1), BRIEF, "VERIFYING"),
@@ -254,6 +258,12 @@ ILLEGAL = [
 def test_illegal_transition_raises(kwargs, facts, requested) -> None:
     with pytest.raises(StateError, match="illegal transition"):
         state.transition(node(**kwargs), requested, None, facts, BUDGETS)
+
+
+@pytest.mark.parametrize("requested", ["VERIFYING", "RETRY"])
+def test_unbriefed_todo_check_names_the_missing_brief(requested) -> None:
+    with pytest.raises(StateError, match=f"illegal transition N01 TODO -> {requested}: no brief"):
+        state.transition(node(type="check"), requested, None, Facts(), BUDGETS)
 
 
 def test_leaving_todo_or_retry_needs_all_deps_done() -> None:
@@ -490,6 +500,7 @@ def test_next_lines_map_ready_statuses_to_actions_and_models() -> None:
         node("N11", status="BLOCKED"),
         node("N12", status="WAITING", note="ask: D1"),
         node("N13", deps=("N06",)),
+        node("N14", type="check", model="-/opus"),
     ]
     facts = {
         "N02": BRIEF,
@@ -510,6 +521,7 @@ def test_next_lines_map_ready_statuses_to_actions_and_models() -> None:
         "N07 verify haiku",
         "N08 brief opus",
         "N09 replan opus",
+        "N14 brief opus",
     ]
 
 

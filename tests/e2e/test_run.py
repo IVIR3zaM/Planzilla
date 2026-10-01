@@ -190,7 +190,7 @@ L_NODES = [
     exec_node("N03", "beta", deps="N01", brief=False),
     exec_node("N04", "gamma", deps="N01", brief=False),
     exec_node("N05", "delta", deps="N03,N04", review=True, brief=False),
-    check_node("N06", "final", deps="N05", cmd="grep -qx ok out/N05.txt"),
+    check_node("N06", "final", deps="N05", cmd="grep -qx ok out/N05.txt", brief=False),
 ]
 P = f".plan/{NAME}/"
 
@@ -211,6 +211,7 @@ def l_script() -> Script:
             "N03": [L_NODES[2].brief_text(), beta_v2.brief_text()],
             "N04": [L_NODES[3].brief_text()],
             "N05": [L_NODES[4].brief_text()],
+            "N06": [L_NODES[5].brief_text()],
         },
     )
 
@@ -237,6 +238,8 @@ def test_c_l_plan_just_in_time_briefs_replans_and_a_blocked_node(tmp_path: Path)
     # just-in-time briefs: BRIEFING first, the planner is dispatched on the planner model
     assert "N02 BRIEFING try 0 rp 0 · dispatch plz-planner opus" in sets
     assert "N02 TODO try 0 rp 0" in sets
+    # a check node is briefed just in time too, before its [cmd] runs
+    assert "N06 BRIEFING try 0 rp 0 · dispatch plz-planner opus" in sets
     # N02 used both tries (B=2), then the redirect gave REPLAN and the planner was dispatched
     assert "N02 RETRY try 1 rp 0" in sets
     assert "N02 REPLAN try 2 rp 1 · dispatch plz-planner opus" in sets
@@ -283,7 +286,7 @@ def test_c_l_plan_just_in_time_briefs_replans_and_a_blocked_node(tmp_path: Path)
             P + "plan.md", P + "nodes/N05.md", P + "log/N05.md",
             P + "runs/N05/check-try1.txt", "out/N05.txt",
         },
-        {P + "plan.md", P + "log/N06.md", P + "runs/N06/check-try1.txt"},
+        {P + "plan.md", P + "nodes/N06.md", P + "log/N06.md", P + "runs/N06/check-try1.txt"},
     ]  # fmt: skip
     assert [commit_files(run.root, sha) for _, sha in commits] == expected
     assert re.fullmatch(rf"N06 {DONE_LINE}", orch.commits[-1][1])
