@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from planzilla.commands import log
-from planzilla.plan import Criterion, load_brief, load_plan, node_paths
+from planzilla.commands._common import append_log, plan_lock, resolve_plan, write_atomic
+from planzilla.plan import Criterion, Node, attempt_key, load_brief, load_plan, node_paths
 
 TIMEOUT = 900
 LAST_LINE_MAX = 120
@@ -63,16 +64,20 @@ def _last_line(output: str) -> str:
     return lines[-1][:LAST_LINE_MAX] if lines else ""
 
 
-def log_lines(results: list[Result]) -> list[str]:
+def log_entry(results: list[Result]) -> tuple[str, list[str]]:
+    """The `check` line text and its bullets (FORMAT §7)."""
     failed = [result for result in results if not result.passed]
     if not failed:
-        return [f"check: PASS {len(results)}/{len(results)}"]
-    head = f"check: FAIL {','.join(result.id for result in failed)}"
+        return f"PASS {len(results)}/{len(results)}", []
     bullets = [
-        f"- {result.id} exit {result.code}: {_last_line(result.output)}".rstrip()
-        for result in failed
+        f"{result.id} exit {result.code}: {_last_line(result.output)}".rstrip() for result in failed
     ]
-    return [head, *bullets]
+    return f"FAIL {','.join(result.id for result in failed)}", bullets
+
+
+def _try_number(node: Node) -> str:
+    key = attempt_key(node)
+    return key.removeprefix("try ") if key.startswith("try ") else str(node.tries)
 
 
 def summary(node_id: str, results: list[Result]) -> str:
@@ -89,7 +94,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _run(args: argparse.Namespace) -> int:
-    path = log.resolve_plan(args.plan, Path.cwd())
+    path = resolve_plan(args.plan, Path.cwd())
     plan = load_plan(path)
     if plan.header.status == "DRAFT":
         raise log.CliError("plan is DRAFT")
@@ -104,14 +109,15 @@ def _run(args: argparse.Namespace) -> int:
                 f"{criterion.id}: [cmd] criterion must start with a backticked command"
             )
     results = [run_command(criterion, plan.root, TIMEOUT) for criterion in criteria]
-    with log.locked(path):
+    with plan_lock(path):
         plan = load_plan(path)
         node = plan.node(node.id)
         runs = node_paths(plan, node.id).runs
         if runs is not None:
-            file = runs / f"check-try{log.try_number(node)}.txt"
-            log.write_atomic(file, evidence_text(results))
-        log.append_log(plan, node.id, log_lines(results), log.today())
+            runs.mkdir(parents=True, exist_ok=True)
+            write_atomic(runs / f"check-try{_try_number(node)}.txt", evidence_text(results))
+        text, bullets = log_entry(results)
+        append_log(plan, node.id, "check", text, bullets, log.today())
     print(summary(node.id, results))
     return 0 if all(result.passed for result in results) else 1
 

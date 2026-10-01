@@ -4,12 +4,14 @@ import os
 import shutil
 import subprocess
 import time
+from functools import partial
 from pathlib import Path
 
 import pytest
 
 from planzilla import cli
 from planzilla.commands import commit
+from planzilla.commands._common import plan_lock
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "commit"
 FORMATS = ["l", "sm"]
@@ -613,7 +615,7 @@ def test_a_held_lock_times_out_with_exit_3(tmp_path, monkeypatch, capsys):
     repo = make_repo(tmp_path, "sm")
     work_on_n01(repo, "sm")
     (repo / ".plan/2026-10-01-demo.md.lock").mkdir()
-    monkeypatch.setattr(commit, "LOCK_TIMEOUT", 0.2)
+    monkeypatch.setattr(commit, "plan_lock", partial(plan_lock, timeout=0.2))
     before = head(repo)
 
     code, out, err = run_commit(monkeypatch, repo, capsys)

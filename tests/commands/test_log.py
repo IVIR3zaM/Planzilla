@@ -2,12 +2,14 @@
 
 import os
 import time
+from functools import partial
 from pathlib import Path
 
 import pytest
 
 from planzilla import cli
 from planzilla.commands import log as log_cmd
+from planzilla.commands._common import plan_lock
 
 HEADER = (
     "# Demo\n"
@@ -215,7 +217,8 @@ def test_slug_fragment_and_ambiguity(tmp_path, capsys, monkeypatch):
     make_s_dir = tmp_path / ".plan" / "2026-10-02-demo-two.md"
     make_s_dir.write_text((plan / "plan.md").read_text())
     code, _, err = log(capsys, "demo", "N01", "note", "x")
-    assert code == 2 and "ambiguous" in err
+    assert code == 2 and "matches several plans" in err
+    assert "2026-10-01-demo" in err and "2026-10-02-demo-two" in err
 
 
 def test_multiline_text_is_kept_on_one_line(tmp_path, capsys):
@@ -234,7 +237,7 @@ def test_lock_is_released_and_no_temp_file_is_left(tmp_path, capsys):
 def test_held_lock_times_out_with_exit_3(tmp_path, capsys, monkeypatch):
     plan = make_l(tmp_path)
     (plan.parent / "2026-10-01-demo.lock").mkdir()
-    monkeypatch.setattr(log_cmd, "LOCK_TIMEOUT", 0.2)
+    monkeypatch.setattr(log_cmd, "plan_lock", partial(plan_lock, timeout=0.2))
     code, out, err = log(capsys, str(plan), "N01", "note", "x")
     assert (code, out) == (3, "")
     assert err.startswith("error: ")

@@ -1,21 +1,21 @@
 """Commit a DONE node's work."""
 
 import argparse
-import contextlib
 import os
 import shutil
 import subprocess
-import sys
-import time
-from collections.abc import Iterator
 from pathlib import Path
 
+from planzilla.commands._common import (
+    LockTimeout,
+    ResolveError,
+    fail,
+    plan_lock,
+    resolve_plan,
+    write_atomic,
+)
 from planzilla.config import load_config
-from planzilla.plan import Plan, PlanError, find_plans, load_brief, load_plan
-
-LOCK_TIMEOUT = 10.0
-LOCK_STALE = 60.0
-LOCK_RETRY = 0.05
+from planzilla.plan import Plan, PlanError, load_brief, load_plan
 
 
 class CommandError(Exception):
@@ -71,50 +71,6 @@ def strip_log_section(text: str) -> str:
     return "\n".join(kept) + "\n"
 
 
-# --- plan reference and lock -----------------------------------------------
-
-
-def resolve_plan(ref: str, cwd: Path) -> Path:
-    """A path to a plan, or a slug fragment matched against the plans in `<cwd>/.plan/`."""
-    candidate = Path(ref)
-    if candidate.exists():
-        resolved = candidate.resolve()
-        if resolved in find_plans(resolved.parent.parent):
-            return resolved
-        raise CommandError(2, f"not a plan: {ref}")
-    found = [path for path in find_plans(cwd) if ref in path.name.removesuffix(".md")]
-    if len(found) != 1:
-        problem = "ambiguous plan" if found else "no plan matches"
-        raise CommandError(2, f"{problem}: {ref}")
-    return found[0].resolve()
-
-
-@contextlib.contextmanager
-def plan_lock(plan: Path) -> Iterator[None]:
-    """Hold the lock directory `<plan path>.lock` (FORMAT §9)."""
-    lock = plan.with_name(plan.name + ".lock")
-    deadline = time.monotonic() + LOCK_TIMEOUT
-    while True:
-        try:
-            os.mkdir(lock)
-            break
-        except FileExistsError:
-            with contextlib.suppress(OSError):
-                if time.time() - lock.stat().st_mtime > LOCK_STALE:
-                    os.rmdir(lock)
-                    continue
-            if time.monotonic() >= deadline:
-                raise CommandError(3, f"lock timeout: {lock}") from None
-            time.sleep(LOCK_RETRY)
-        except OSError as error:
-            raise CommandError(3, f"cannot take lock {lock}: {error}") from None
-    try:
-        yield
-    finally:
-        with contextlib.suppress(OSError):
-            os.rmdir(lock)
-
-
 # --- git ---------------------------------------------------------------------
 
 
@@ -166,12 +122,6 @@ def _remove(root: Path, rels: list[str]) -> None:
             path.unlink()
 
 
-def _write_atomic(path: Path, text: str) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_bytes(text.encode("utf-8"))
-    tmp.replace(path)
-
-
 # --- command -----------------------------------------------------------------
 
 
@@ -183,9 +133,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 def run(args: argparse.Namespace) -> int:
     try:
         return _run(args.plan, args.node)
-    except (CommandError, PlanError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return error.code if isinstance(error, CommandError) else 2
+    except CommandError as error:
+        return fail(str(error), error.code)
+    except (PlanError, ResolveError) as error:
+        return fail(str(error), 2)
+    except LockTimeout as error:
+        return fail(str(error), 3)
 
 
 def _run(ref: str, node_id: str) -> int:
@@ -261,7 +214,7 @@ def _apply_retention(plan: Plan, retention: str, root: Path, plan_rel: str) -> N
         else:
             stripped = strip_log_section(plan.text)
             if stripped != plan.text:
-                _write_atomic(plan.graph_file, stripped)
+                write_atomic(plan.graph_file, stripped)
                 _git(root, "add", "-A", "--", plan_rel, literal=True)
     elif retention in ("delete", "branch-only"):
         _remove(root, [plan_rel])

@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from planzilla.commands import log
+from planzilla.commands._common import resolve_plan
 from planzilla.config import Config, load_config
 from planzilla.plan import Brief, Node, Plan, load_brief, load_plan
 
@@ -86,7 +87,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _run(args: argparse.Namespace) -> int:
-    plan = load_plan(log.resolve_plan(args.plan, Path.cwd()))
+    plan = load_plan(resolve_plan(args.plan, Path.cwd()))
     node = plan.node(args.node)
     if args.ask:
         text = ask_line(plan, node)
