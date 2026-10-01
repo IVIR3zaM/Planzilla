@@ -13,3 +13,7 @@
 - Keep to a node's Write paths; never commit unless asked.
 - Verify before finishing: `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
 - The kit under `src/planzilla/kit/` is package data and ships with the package.
+
+<!-- planzilla:begin -->
+placeholder: AGENTS block
+<!-- planzilla:end -->

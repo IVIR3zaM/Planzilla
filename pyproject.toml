@@ -27,10 +27,12 @@ packages = ["src/planzilla"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = [".planzilla"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = [".planzilla"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
