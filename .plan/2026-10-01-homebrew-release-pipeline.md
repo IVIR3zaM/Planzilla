@@ -1,5 +1,5 @@
 # Homebrew release pipeline
-status: RUNNING
+status: WAITING
 created: 2026-10-01 · updated: 2026-10-01
 goal: pushing a vX.Y.Z tag tests, releases and publishes a brew-tested planzilla formula to IVIR3zaM/homebrew-tap
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
@@ -58,7 +58,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 | N03 | release workflow with brew gate | exec | N02 | opus/opus | 1 | 0 | DONE | |
 | N04 | README install line | exec | N02 | haiku/haiku | 1 | 0 | DONE | |
 | N05 | open PR into main | exec | N03 | sonnet/haiku | 1 | 0 | DONE | |
-| N06 | dry runs green on GitHub | check | N10 | -/sonnet | 0 | 1 | TODO | |
+| N06 | dry runs green on GitHub | check | N10 | -/sonnet | 1 | 1 | DONE | |
 | N07 | tap secret and release go-ahead | gate | N04,N06 | -/- | 0 | 0 | TODO | |
 | N08 | merge PR and tag v0.1.0 | exec | N07 | sonnet/- | 0 | 0 | TODO | |
 | N09 | plan acceptance | check | N08 | -/sonnet | 0 | 0 | TODO | |
@@ -326,3 +326,6 @@ exec: DONE · 618 passed, 1 skipped
 - No pipes around brew commands; output captured via redirect so exit codes are kept; planzilla version read from $(brew --prefix)/bin/planzilla
 check: PASS 5/5
 verify: PASS
+
+### N06 try 1 · 2026-10-01
+check: PASS 5/5
