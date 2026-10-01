@@ -49,11 +49,13 @@ Done when:
 Format rules (FORMAT §1-§7; delete this comment in a real plan)
 - S/M layout: one file .plan/<date>-<slug>.md with exactly these top-level sections in this order: title and
   header, Intent, Decisions, Graph, one `## <id> <title>` brief per Graph row in row order, Log (last).
-- tier: S (one executor context, 1-2 nodes, no open decisions) or M (about 2-10 nodes; the default). Tiers
-  only escalate: an S node blocked makes it M; more than 10 nodes or evidence in runs/ moves it to L.
+- tier: S (one executor context, 1-2 exec nodes, no open decisions; no preflight and no final check) or M
+  (about 2-10 nodes; the default). Tiers only escalate: an S node blocked makes it M; more than 10 nodes or
+  evidence in runs/ moves it to L.
 - Header, Decisions and Graph as in the L plan.md template; Intent as in intent.md; each brief as in node.md
   with the heading `## <id> <title>`. All briefs are written with the plan (S/M), each at most 40 lines (L1).
-- N01 is always the preflight check (L3); the last node checks the whole plan. A check node has no Write.
+- M: N01 is the preflight check (L3), the last node a whole-plan check running `verify`; S has neither (D26).
+  A check node has no Write.
 - Log stays empty here: only the CLI appends to it (`planzilla log`, `check`, `resume`), with headings
   `### <id> <key> · <date>`.
 - Once READY, rows change only through `planzilla set`; commits come only from `planzilla commit` (L6).

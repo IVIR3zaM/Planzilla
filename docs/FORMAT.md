@@ -15,7 +15,7 @@ property of the plan, never of the repo.
 
 | tier | when | layout (§2) | briefs | who orchestrates |
 |------|------|-------------|--------|------------------|
-| S | one executor context, no open decisions, 1-2 nodes | single file | all written with the plan | the current thread, with subagents |
+| S | one executor context, no open decisions, 1-2 exec nodes | single file | all written with the plan | the current thread, with subagents |
 | M | about 2-10 nodes, clear scope | single file | all written in one planner call | `plz-run-plan`; planner called again only on replan or a missing brief |
 | L | more than 10 nodes, multi-session or multi-environment, or evidence artifacts (`runs/`) | directory | just in time: a node is briefed when it becomes ready (§5 row 1) | `plz-run-plan` |
 
@@ -27,6 +27,12 @@ property of the plan, never of the repo.
     planner moves the file to a directory: header, `## Decisions`, `## Graph` go to `plan.md`; `## Intent` body to
     `intent.md`; each `## <id> <title>` section to `nodes/<id>.md` with heading `# <id> <title>`; each node's
     `## Log` entries to `log/<id>.md` (headings `### <id> <h>` become `## <h>`). Graph cells are unchanged.
+- Node rules by tier (D26):
+  - S has 1-2 exec nodes, no preflight and no final check; each exec node's last criterion runs the full `verify`.
+  - M and L plans start with the N01 preflight `check` node (the full `verify` passes on the untouched tree; a
+    `[cmd]` criterion proves each tool and its auth, each network endpoint and each permission the plan needs)
+    and end with a whole-plan check node whose first criterion runs the full `verify`. Executors run
+    `verify_fast`, so each exec node's last criterion runs `verify_fast`.
 - The CLI treats S and M identically; only the layout (file or directory) changes its behavior.
 
 ## §2 Plan layouts
@@ -320,8 +326,8 @@ the file.
 
 | key | values | default | used by |
 |-----|--------|---------|---------|
-| `verify` | shell command, full check for the repo | empty | planner → plan header `verify:` |
-| `verify_fast` | shell command executors run before replying | `verify` | `brief` (last line, §9) |
+| `verify` | shell command, full check for the repo | empty | planner → plan header `verify:`; the final check node's first criterion (M/L), an S exec node's last |
+| `verify_fast` | shell command executors run before replying | `verify` | `brief` (last line, §9); an M/L exec node's last criterion |
 | `commit` | `per-node` · `none` | `per-node` | planner → header `commit:`; CLI when the header lacks it |
 | `push` | `per-node` · `none` (`yes`/`no` accepted as aliases) | `none` | planner → header `push:`; CLI when the header lacks it |
 | `retention` | `keep` · `prune-logs` · `delete` · `branch-only` | `keep` | `commit` on the finishing commit (§10) |

@@ -10,8 +10,8 @@ Modes (first word of the prompt):
 Once a plan is READY its Graph rows change only through the CLI, never by hand: `.planzilla/plz set <plan> <new> --add --title T --deps D --model M [--type exec|check|gate]` adds a node; `.planzilla/plz set <plan> <id> --deps D` (or `--title`, `--model`) re-points one. Read state with `.planzilla/plz status <plan>` and other briefs with `.planzilla/plz brief <plan> <id>`; never open another node's brief file or log.
 A new behavior-changing decision mid-run: add it as `proposed`, change nothing else, reply ASK.
 Tiers only escalate (§1): an S node blocked → `tier: M`; a graph past 10 nodes or needing `runs/` → move to L per §1.
-Every plan (L3): N01 is a preflight `check` node: the verify command passes on the untouched tree and a `[cmd]` criterion proves each tool and its auth, each network endpoint, and each permission the plan needs
-  (write and push rights, tools the agents will run). The last node is a `check` node over the whole plan.
+M/L plans (L3, D26) start with the N01 preflight `check` node: verify passes on the untouched tree and a `[cmd]` criterion proves each tool and its auth, each network endpoint, and each permission the plan needs
+  (write and push rights, tools the agents will run). The last node is a whole-plan check whose first criterion runs the full `verify`. S has no preflight and no final check: 1-2 exec nodes only.
 Nodes: one coherent change per executor context; test-first where the repo has tests; Write paths disjoint within a
   wave; model `<exec>/<verify>`: haiku mechanical, sonnet well specified, opus judgement; `-` where no phase.
 Briefs (L1): at most 40 lines with the heading; fields in §6 order; self-contained (restate the Decisions they
@@ -19,7 +19,7 @@ Briefs (L1): at most 40 lines with the heading; fields in §6 order; self-contai
   "previously" in it. History lives only in the log.
 Criteria (L4): `- C<n> [cmd|review|smoke|visual|human] <text>`, each falsifiable; together they cover every part of
   the `Do:`. `[cmd]` starts with one backticked command. `[human]` only when no other tag can check it. Config
-  `always_review: yes` → every exec node has a `[review]`. An exec node's last criterion runs the plan's verify.
+  `always_review: yes` → every exec node has a `[review]`. An exec node's last criterion runs `verify_fast` (S: the full `verify`).
 After every write run `.planzilla/plz lint <plan>` and fix until it prints `lint ok`.
 Never commit: the orchestrator's `commit` makes one commit per node with the plan state; no status-only commits (L6).
 Agents are named `plz-planner`, `plz-executor`, `plz-verifier`, `plz-visual`; name no other agent in a plan (L8).

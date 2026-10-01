@@ -32,8 +32,8 @@ Format rules (FORMAT §2-§5; delete this comment in a real plan)
   assumption, every choice with more than one reasonable answer, every mid-run human stop (pre-authorize it).
 - Graph: exactly this header row; cells `| value |`, empty note `| |`. id `N01`, split `N03a`; type exec, check
   or gate; deps `-` or `N01,N02`; model `<exec>/<verify>`: haiku, sonnet, opus or `-`; try 0, rp 0, TODO.
-- N01 is always the preflight check (L3); the last node checks the whole plan. Nodes of one wave have disjoint
-  Write paths. A gate node (model -/-) exists only for a Decision kept live for a human.
+- L: N01 is the preflight check (L3); the last node checks the whole plan, first criterion `verify` (D26).
+  Nodes of one wave have disjoint Write paths. A gate node (model -/-) exists only for a Decision kept live for a human.
 - Once READY, rows change only through `planzilla set` (D8). Commits come only from `planzilla commit`, one per
   node with its plan state; never a status-only commit (L6).
 -->

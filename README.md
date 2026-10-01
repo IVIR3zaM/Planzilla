@@ -114,9 +114,13 @@ plan `<slug>`, node `N03`". The same files and CLI work from there on.
 
 | tier | when | layout |
 |------|------|--------|
-| S | one executor context, no open decisions, 1 to 2 nodes | one file in `.plan/` |
+| S | one executor context, no open decisions, 1 to 2 exec nodes | one file in `.plan/` |
 | M | about 2 to 10 nodes, clear scope | one file, all briefs written in one planner call |
 | L | more than 10 nodes, multi-session or multi-environment work, or evidence artifacts | a directory; each node is briefed just in time |
+
+An S plan has no preflight and no final check: just its 1 to 2 exec nodes, each ending on the full `verify`. M and
+L plans start with an N01 preflight check node (tools, auth, network, permissions) and end with a whole-plan check
+node whose first criterion runs the full `verify`; their exec nodes end on `verify_fast`.
 
 An S plan whose node is BLOCKED becomes M on replan; an M plan that outgrows the single file moves to an L
 directory on replan.
@@ -128,8 +132,8 @@ first run and proposes them to you. A plan's own header wins over the config.
 
 | key | meaning | default |
 |-----|---------|---------|
-| `verify` | full check command for the repo | empty |
-| `verify_fast` | command executors run before replying | `verify` |
+| `verify` | full check command for the repo; the final check node of an M or L plan runs it | empty |
+| `verify_fast` | command executors run before replying (the last criterion of an M or L exec node) | `verify` |
 | `commit` | `per-node` or `none` | `per-node` |
 | `push` | `per-node` or `none` | `none` |
 | `retention` | `keep`, `prune-logs`, `delete` or `branch-only`: what happens to plan records in the finishing commit | `keep` |

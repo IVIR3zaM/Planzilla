@@ -6,7 +6,7 @@ Write: `<path>`, `<dir>/**`
 Test first: <the failing test's behavior, or `-`>
 Done when:
 - C1 [review] <falsifiable statement about the tree, naming the file or behavior>
-- C2 [cmd] `<plan verify command>`
+- C2 [cmd] `<verify_fast command; tier S: the full verify command>`
 
 <!--
 Format rules (FORMAT §6; delete this comment in a real brief)

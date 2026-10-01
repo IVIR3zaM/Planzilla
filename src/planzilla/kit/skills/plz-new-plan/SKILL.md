@@ -15,7 +15,7 @@ Questions go to the user in as few rounds as possible: clarification once (step 
 2. **Gaps.** List what the request leaves open: missing parts, hidden assumptions, scope edges, constraints,
    and how "done" will be shown. Read only what you need to see them (README, CLAUDE.md/AGENTS.md).
 3. **Tier** (req 5, FORMAT §1): pick the smallest that fits; tiers only escalate later, never back:
-   - S: one executor context, no open decisions, 1-2 nodes.
+   - S: one executor context, no open decisions, 1-2 exec nodes, no preflight and no final check.
    - M: about 2-10 nodes, clear scope.
    - L: more than 10 nodes, several sessions or environments, or evidence files (`runs/`).
 4. **Config** (req 8). If `.plan/config.md` is missing, detect values from `pyproject.toml`, `package.json`,
