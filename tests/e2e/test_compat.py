@@ -19,7 +19,8 @@ def template(name: str, heading: str = "#") -> str:
     text = (TEMPLATES / name).read_text()
     text = re.sub(r"<!--.*?-->\n?", "", text, flags=re.DOTALL)
     text = text.replace("YYYY-MM-DD", DATE).replace("<plan verify command>", "true")
-    text = text.replace("<a command proving a needed tool, service or credential works>", "true")
+    for placeholder in re.findall(r"<a command proving[^>\n]*>", text):
+        text = text.replace(placeholder, "true")
     text = re.sub(r"<[^>\n]+>", "text", text)  # every other placeholder: plain text
     if heading == "##":  # a brief as a section of a single-file plan
         text = re.sub(r"^# ", "## ", text, count=1)

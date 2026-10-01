@@ -38,7 +38,7 @@ opus) with exactly one line:
 Pass what was agreed, not the user's raw wording. The planner stores it as the Intent in its own words (L:
 `intent.md`; S/M: the `## Intent` section; never the raw prompt) and writes the plan as DRAFT:
 - S/M: this one call writes the header (`tier: S` for S), `## Decisions`, `## Graph` and every brief.
-- L: `plan.md` only (header, Decisions, Graph); briefs come just in time from plz-run-plan (`Brief:`).
+- L: `plan.md` and the gate briefs, with the outline; every other brief, check nodes included, comes just in time from plz-run-plan (`Brief:`).
 Expect one line `OUTLINED <plan> | tier: <T> | nodes: <n> | open: <k>`.
 
 ## 4. Confirm, once

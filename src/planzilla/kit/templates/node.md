@@ -18,6 +18,6 @@ Format rules (FORMAT §6; delete this comment in a real brief)
 - Criteria `- C<n> [tag] text`, continuation lines indented 2+ spaces. Tags: cmd (starts with one backticked
   command), review, smoke (command and expected observation), visual (page/state and what must be seen), human
   (only when nothing else can check it). Each falsifiable; together they cover the whole Do (L4).
-- The current brief only: a replan rewrites it clean; history lives in the log (L1). L-tier briefs are written
-  just in time, when the node is ready (L2).
+- The current brief only: a replan rewrites it clean; history lives in the log (L1). L-tier briefs, check nodes
+  included, are written just in time, when the node is ready (L2); gate briefs come with the outline.
 -->

@@ -34,11 +34,14 @@ Definition of done: <the observable result that ends the plan>
 | N03 | plan acceptance | check | N02 | -/sonnet | 0 | 0 | TODO | |
 
 ## N01 preflight
-Do: Confirm the starting point before any work: the verify command passes on the untouched tree and every tool,
-service and credential the plan needs answers.
+Do: Confirm the starting point before any work: the verify command passes on the untouched tree, and every tool
+the plan needs, its auth, each network endpoint and each permission (write and push rights, tools the agents
+will run) answers.
 Done when:
 - C1 [cmd] `<plan verify command>`
-- C2 [cmd] `<a command proving a needed tool, service or credential works>`
+- C2 [cmd] `<a command proving a needed tool works and its auth is valid>`
+- C3 [cmd] `<a command proving a needed network endpoint is reachable>`
+- C4 [cmd] `<a command proving a needed permission, e.g. write or push rights>`
 
 ## Log
 
