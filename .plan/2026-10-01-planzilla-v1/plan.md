@@ -59,4 +59,4 @@ budgets: 2 tries per brief · 2 replans per node
 | N16 | dogfood: vendor Planzilla into this repo | exec | N08b,N09,N10,N14 | haiku/haiku | 1 | 0 | DONE | |
 | N17 | plan acceptance | check | N15,N16,N19 | -/opus | 0 | 1 | TODO | |
 | N18 | consolidate brief, log, check, commit onto shared IO | exec | N05a,N06,N07 | sonnet/sonnet | 1 | 0 | DONE | |
-| N19 | kit: real AGENTS block, re-vendor this repo | exec | N16 | sonnet/sonnet | 1 | 0 | RUNNING | |
+| N19 | kit: real AGENTS block, re-vendor this repo | exec | N16 | sonnet/sonnet | 1 | 0 | VERIFYING | |
