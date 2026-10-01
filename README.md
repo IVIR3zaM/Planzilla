@@ -25,7 +25,7 @@ The full spec is [docs/FORMAT.md](docs/FORMAT.md); this README links to it inste
 Pick one. All three give you the `planzilla` command (also available as `plz`).
 
 ```sh
-# Homebrew (tap IVIR3zaM/homebrew-tap, formula planzilla)
+# Homebrew (tap IVIR3zaM/homebrew-tap, formula planzilla with python@3.13)
 brew install IVIR3zaM/tap/planzilla
 
 # uvx, no install step
