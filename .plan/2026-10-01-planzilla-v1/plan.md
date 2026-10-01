@@ -44,7 +44,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N03 | scaffold: pyproject, cli dispatcher + stubs, AGENTS.md, LICENSE | exec | N02 | sonnet/haiku | 1 | 0 | DONE | |
 | N04 | plan model + config parsing (both formats) | exec | N03 | opus/sonnet | 1 | 0 | DONE | |
 | N05a | shared command IO: plan ref, lock, plan and log writes | exec | N04,N08a | sonnet/sonnet | 1 | 1 | DONE | |
-| N05b | state machine: set, next, resume, waves | exec | N05a | opus/opus | 0 | 1 | TODO | |
+| N05b | state machine: set, next, resume, waves | exec | N05a | opus/opus | 1 | 1 | RUNNING | |
 | N06 | brief, log, check commands | exec | N04,N08a | sonnet/sonnet | 1 | 0 | DONE | |
 | N07 | commit + retention | exec | N04,N08a | sonnet/sonnet | 1 | 0 | DONE | |
 | N08a | self-maintaining CLI stub test | exec | N03 | sonnet/haiku | 1 | 1 | DONE | |
@@ -58,4 +58,4 @@ budgets: 2 tries per brief · 2 replans per node
 | N15 | README | exec | N08b,N09,N10,N11,N13,N14 | sonnet/sonnet | 0 | 0 | TODO | |
 | N16 | dogfood: vendor Planzilla into this repo | exec | N08b,N09,N10,N14 | haiku/haiku | 0 | 0 | TODO | |
 | N17 | plan acceptance | check | N15,N16 | -/opus | 0 | 0 | TODO | |
-| N18 | consolidate brief, log, check, commit onto shared IO | exec | N05a,N06,N07 | sonnet/sonnet | 0 | 0 | TODO | |
+| N18 | consolidate brief, log, check, commit onto shared IO | exec | N05a,N06,N07 | sonnet/sonnet | 1 | 0 | RUNNING | |
