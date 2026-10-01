@@ -1,4 +1,11 @@
+import importlib
+import inspect
+import subprocess
+import sys
+
 import pytest
+
+from planzilla import cli
 
 COMMANDS = [
     "install",
@@ -35,9 +42,24 @@ def test_command_order_matches_format():
     assert list(cli.COMMANDS) == COMMANDS
 
 
-@pytest.mark.parametrize("name", COMMANDS)
-def test_stub_exits_2(plz, name):
-    result = plz(name)
+def _stub_commands():
+    """Names in cli.COMMANDS whose module `run` still prints `not implemented:`."""
+    return [
+        name
+        for name in cli.COMMANDS
+        if "not implemented:"
+        in inspect.getsource(importlib.import_module(f"planzilla.commands.{name}").run)
+    ]
+
+
+@pytest.mark.parametrize("name", _stub_commands())
+def test_stub_exits_2(tmp_path, name):
+    result = subprocess.run(
+        [sys.executable, "-m", "planzilla", name],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
     assert result.returncode == 2
     assert f"not implemented: {name}" in result.stderr
     assert result.stdout == ""
