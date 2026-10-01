@@ -43,11 +43,11 @@ budgets: 2 tries per brief · 2 replans per node
 | N02 | project spec docs/FORMAT.md | exec | N01 | opus/opus | 2 | 0 | DONE | |
 | N03 | scaffold: pyproject, cli dispatcher + stubs, AGENTS.md, LICENSE | exec | N02 | sonnet/haiku | 1 | 0 | DONE | |
 | N04 | plan model + config parsing (both formats) | exec | N03 | opus/sonnet | 1 | 0 | DONE | |
-| N05 | state machine: set, next, resume, waves | exec | N04,N08a | opus/opus | 0 | 0 | TODO | |
-| N06 | brief, log, check commands | exec | N04,N08a | sonnet/sonnet | 0 | 0 | TODO | |
-| N07 | commit + retention | exec | N04,N08a | sonnet/sonnet | 0 | 0 | TODO | |
+| N05 | state machine: set, next, resume, waves | exec | N04,N08a | opus/opus | 1 | 0 | RUNNING | |
+| N06 | brief, log, check commands | exec | N04,N08a | sonnet/sonnet | 1 | 0 | RUNNING | |
+| N07 | commit + retention | exec | N04,N08a | sonnet/sonnet | 1 | 0 | RUNNING | |
 | N08a | self-maintaining CLI stub test | exec | N03 | sonnet/haiku | 1 | 1 | DONE | |
-| N08b | install (vendoring, --version) | exec | N08a | sonnet/sonnet | 0 | 1 | TODO | |
+| N08b | install (vendoring, --version) | exec | N08a | sonnet/sonnet | 1 | 1 | RUNNING | |
 | N09 | kit: roles, templates, Claude Code adapters | exec | N03 | opus/opus | 1 | 0 | DONE | |
 | N10 | kit: plz-new-plan, plz-run-plan skills | exec | N03 | opus/opus | 1 | 0 | DONE | |
 | N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
