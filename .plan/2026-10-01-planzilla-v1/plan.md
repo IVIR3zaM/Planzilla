@@ -41,7 +41,7 @@ budgets: 2 tries per brief · 2 replans per node
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight: tools, git, network, permissions | exec | - | haiku/haiku | 1 | 1 | DONE | |
 | N02 | project spec docs/FORMAT.md | exec | N01 | opus/opus | 2 | 0 | DONE | |
-| N03 | scaffold: pyproject, cli dispatcher + stubs, AGENTS.md, LICENSE | exec | N02 | sonnet/haiku | 0 | 0 | TODO | |
+| N03 | scaffold: pyproject, cli dispatcher + stubs, AGENTS.md, LICENSE | exec | N02 | sonnet/haiku | 1 | 0 | RUNNING | |
 | N04 | plan model + config parsing (both formats) | exec | N03 | opus/sonnet | 0 | 0 | TODO | |
 | N05 | state machine: set, next, resume, waves | exec | N04 | opus/opus | 0 | 0 | TODO | |
 | N06 | brief, log, check commands | exec | N04 | sonnet/sonnet | 0 | 0 | TODO | |
