@@ -1,5 +1,5 @@
 # Planzilla v1
-status: RUNNING
+status: DONE
 created: 2026-10-01 · updated: 2026-10-01
 goal: Planzilla v1 in this repo: stdlib-only `planzilla` CLI holding the plan state machine, cross-harness kit (roles, plz-* skills, Claude Code adapters, templates) vendored by `install`, CI/release/Homebrew, README; requirements 1–14 and lessons L1–L8 of request.md met
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
