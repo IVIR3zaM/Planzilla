@@ -1,5 +1,5 @@
 # Homebrew release pipeline
-status: RUNNING
+status: DONE
 created: 2026-10-01 · updated: 2026-10-01
 goal: pushing a vX.Y.Z tag tests, releases and publishes a brew-tested planzilla formula to IVIR3zaM/homebrew-tap
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
@@ -62,7 +62,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 | N06 | dry runs green on GitHub | check | N10 | -/sonnet | 1 | 1 | DONE | |
 | N07 | tap secret and release go-ahead | gate | N04,N06 | -/- | 0 | 0 | DONE | |
 | N08 | merge PR and tag v0.1.0 | exec | N07 | sonnet/- | 1 | 1 | DONE | |
-| N09 | plan acceptance | check | N08 | -/sonnet | 0 | 0 | TODO | |
+| N09 | plan acceptance | check | N08 | -/sonnet | 1 | 0 | DONE | |
 | N10 | brew audit fix and readable brew output | exec | N05 | opus/sonnet | 1 | 0 | DONE | |
 
 ## N01 preflight
@@ -351,3 +351,7 @@ exec: DONE · 618 passed, 1 skipped
 - No files changed: PR #2 was already merged (3909535) and tag v0.1.0 already on origin at that commit; Release run started
 - Skipped merge and tag push since both already done
 check: PASS 5/5
+
+### N09 try 1 · 2026-10-01
+check: PASS 5/5
+verify: PASS
