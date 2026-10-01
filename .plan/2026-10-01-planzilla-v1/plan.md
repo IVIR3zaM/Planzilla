@@ -45,7 +45,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N04 | plan model + config parsing (both formats) | exec | N03 | opus/sonnet | 1 | 0 | DONE | |
 | N05a | shared command IO: plan ref, lock, plan and log writes | exec | N04,N08a | sonnet/sonnet | 1 | 1 | RUNNING | |
 | N05b | state machine: set, next, resume, waves | exec | N05a | opus/opus | 0 | 1 | TODO | |
-| N06 | brief, log, check commands | exec | N04,N08a | sonnet/sonnet | 1 | 0 | RUNNING | |
+| N06 | brief, log, check commands | exec | N04,N08a | sonnet/sonnet | 1 | 0 | VERIFYING | |
 | N07 | commit + retention | exec | N04,N08a | sonnet/sonnet | 1 | 0 | VERIFYING | |
 | N08a | self-maintaining CLI stub test | exec | N03 | sonnet/haiku | 1 | 1 | DONE | |
 | N08b | install (vendoring, --version) | exec | N08a | sonnet/sonnet | 1 | 1 | VERIFYING | |
