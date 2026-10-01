@@ -1,5 +1,5 @@
 # Homebrew release pipeline
-status: READY
+status: RUNNING
 created: 2026-10-01 · updated: 2026-10-01
 goal: pushing a vX.Y.Z tag tests, releases and publishes a brew-tested planzilla formula to IVIR3zaM/homebrew-tap
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
@@ -53,7 +53,7 @@ Formula/planzilla.rb in the tap points at v0.1.0's sdist url with its sha256.
 
 | id | title | type | deps | model | try | rp | status | note |
 |----|-------|------|------|-------|-----|----|--------|------|
-| N01 | preflight | check | - | -/- | 0 | 0 | TODO | |
+| N01 | preflight | check | - | -/- | 1 | 0 | DONE | |
 | N02 | stdlib launcher formula | exec | N01 | sonnet/sonnet | 0 | 0 | TODO | |
 | N03 | release workflow with brew gate | exec | N02 | opus/opus | 0 | 0 | TODO | |
 | N04 | README install line | exec | N02 | haiku/haiku | 0 | 0 | TODO | |
@@ -232,3 +232,6 @@ Done when:
   gives `planzilla` and `plz` on python@3.13, and the uvx and pipx lines are unchanged.
 
 ## Log
+
+### N01 try 1 · 2026-10-01
+check: PASS 8/8
