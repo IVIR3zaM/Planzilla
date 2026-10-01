@@ -50,7 +50,7 @@ budgets: 2 tries per brief · 2 replans per node
 | N08b | install (vendoring, --version) | exec | N08a | sonnet/sonnet | 0 | 1 | TODO | |
 | N09 | kit: roles, templates, Claude Code adapters | exec | N03 | opus/opus | 1 | 0 | VERIFYING | |
 | N10 | kit: plz-new-plan, plz-run-plan skills | exec | N03 | opus/opus | 1 | 0 | VERIFYING | |
-| N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | VERIFYING | |
+| N11 | CI, release workflow, Homebrew formula | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
 | N12 | status, stats, lint | exec | N05 | sonnet/sonnet | 0 | 0 | TODO | |
 | N13 | serve: live view | exec | N12 | sonnet/sonnet | 0 | 0 | TODO | |
 | N14 | end-to-end CLI run test (S/M/L fixtures) | exec | N05,N06,N07,N12 | sonnet/opus | 0 | 0 | TODO | |
