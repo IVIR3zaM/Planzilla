@@ -1,5 +1,5 @@
 # Claude and Codex model routing for any harness
-status: RUNNING
+status: DONE
 created: 2026-10-19 · updated: 2026-10-19
 goal: from any harness, a plan can run each node phase on a Claude model (claude CLI) or a Codex model (codex CLI), with per-node effort, next to natively dispatched nodes
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
@@ -73,7 +73,7 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 | N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 1 | 0 | DONE | |
 | N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 2 | 0 | DONE | |
 | N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 1 | 0 | DONE | |
-| N08 | plan acceptance | check | N06,N07 | -/sonnet | 0 | 0 | TODO | |
+| N08 | plan acceptance | check | N06,N07 | -/sonnet | 1 | 1 | DONE | |
 
 ## N01 preflight
 Do: Confirm the starting point: verify passes on the untouched tree; codex 0.163.0 and claude 2.1.89 are
@@ -286,13 +286,16 @@ Done when:
 - C2 [cmd] `r=$PWD; d=$(mktemp -d) && cp -R tests/fixtures/run-smoke/. "$d" && cd "$d" && "$r/.planzilla/plz" lint smoke | grep -q '^lint ok' && printf 'providers: claude\n' > .plan/config.md && "$r/.planzilla/plz" lint smoke | grep -q 'providers: N01 model gpt-6-luna@low needs config providers to list codex'`
 - C3 [cmd] `r=$PWD; d=$(mktemp -d) && cp -R tests/fixtures/run-smoke/. "$d" && cd "$d" && "$r/.planzilla/plz" next smoke | grep -qx 'N01 verify gpt-6-luna@low' && "$r/.planzilla/plz" set smoke N01 VERIFYING | grep -q '· dispatch plz-verifier gpt-6-luna@low$'`
 - C4 [cmd] `test -f .claude/agents/plz-run.md && grep -q plz-run .claude/skills/plz-run-plan/SKILL.md && grep -q plz-run .agents/skills/plz-run-plan/SKILL.md && grep -q 'plz run' .agents/skills/plz-new-plan/SKILL.md && grep -q providers .planzilla/roles/planner.md && grep -q plz-run docs/FORMAT.md && grep -q plz-run README.md`
-- C5 [smoke] From the repo root, with a Bash timeout of 600000 ms, set up once:
+- C5 [smoke] From the repo root, Bash timeout 600000 ms, make a fresh smoke repo (D9):
   `r=$PWD; d=$(mktemp -d) && cp -R tests/fixtures/run-smoke/. "$d" && cd "$d" && git init -q && git add -A && git -c user.name=smoke -c user.email=smoke@example.invalid commit -qm smoke && uv run --project "$r" planzilla install --target . > /dev/null`,
-  then in that dir run `.planzilla/plz run verifier gpt-6-luna@low "Plan: smoke · Node: N01 · Try: 1"` once.
-  Expected: exit 0 and exactly one stdout line, `PASS N01` (or `FAIL N01: C1`, which still proves the
-  plumbing); anything else fails.
-- C6 [smoke] In the same temp dir run `.planzilla/plz run verifier haiku@low "Plan: smoke · Node: N01 · Try: 1"`
-  once, Bash timeout 600000 ms. Expected as in C5. Remove the temp dir afterwards.
+  then in it run `.planzilla/plz run verifier gpt-6-luna@low "Plan: smoke · Node: N01 · Try: 1"`.
+  Pass: exit 0 and exactly one stdout line, `PASS N01` or `FAIL N01: C1` (either proves the plumbing).
+  Exit 0 with any other one line is a malformed model reply: run the same call once more, as the run
+  loop re-dispatches one (src/planzilla/kit/skills/plz-run-plan/SKILL.md:38); it must pass then.
+  A non-zero exit, or a second malformed reply, fails. Remove the temp dir afterwards.
+- C6 [smoke] As C5, in its own fresh smoke repo made the same way, with
+  `.planzilla/plz run verifier haiku@low "Plan: smoke · Node: N01 · Try: 1"`; same pass rule and
+  one retry on a malformed reply. Remove the temp dir afterwards.
 - C7 [review] Over the whole repo: tests cover a `gpt-` row with effort linting ok with codex listed and failing
   without, an effort the provider lacks failing to parse, `next`/`set` printing the token, and `plz run`
   building both providers' argv, printing the reply and exiting 3 on each external failure with the CLIs
@@ -389,4 +392,18 @@ exec: DONE · 747 passed
 - FORMAT §4 now states each path's bad-token message as emitted: Graph cell, set --model, config models
 - no other changes this try
 check: PASS 2/2
+verify: PASS
+
+### N08 try 1 · 2026-10-19
+check: PASS 4/4
+verify: FAIL C6
+- C6 smoke: 'plz run verifier haiku@low "Plan: smoke · Node: N01 · Try: 1"' exited 0 but printed '# Planzilla role: verifier' (the first line of the role prompt) instead of 'PASS N01' or 'FAIL N01: C1' - expected a verdict line
+
+### N08 replan 1 · 2026-10-19
+plan: REPLANNED
+- cause: C6 haiku@low call exited 0 but replied the role file's first line, a malformed model reply; a rerun of the same call in a fresh smoke repo replied PASS N01 after reading the role, brief and hello.txt, so plz run and its argv are sound and the miss was model nondeterminism
+- C5 and C6 now each use their own fresh smoke repo and allow one rerun on an exit-0 malformed reply, matching the run loop's one re-dispatch (plz-run-plan SKILL.md:38); a non-zero exit or a second malformed reply still fails
+
+### N08 try 1 · 2026-10-19
+check: PASS 4/4
 verify: PASS
