@@ -71,7 +71,7 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 | N03 | lint rule providers | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
 | N04 | plz run command | exec | N02 | sonnet/opus | 2 | 1 | DONE | |
 | N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 1 | 0 | DONE | |
-| N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 1 | 0 | VERIFYING | |
+| N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 2 | 0 | DONE | |
 | N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 1 | 0 | DONE | |
 | N08 | plan acceptance | check | N06,N07 | -/sonnet | 0 | 0 | TODO | |
 
@@ -379,3 +379,14 @@ check: PASS 2/2
 
 ### N07 try 1 · 2026-10-19
 check: PASS 4/4
+
+### N06 try 1 · 2026-10-19
+verify: FAIL C2
+- C2 docs/FORMAT.md:143 - §4 says a bad token in a Graph model cell is a parse error with the 'bad model token ...' texts, but plan.py:425 reports only "bad model '<cell>'" (token reason dropped) and state.py:231 (set --model) reports "bad --model '<m>': bad model token ..."; only the config path matches - expected FORMAT to state each path's message as the code emits it
+
+### N06 try 2 · 2026-10-19
+exec: DONE · 747 passed
+- FORMAT §4 now states each path's bad-token message as emitted: Graph cell, set --model, config models
+- no other changes this try
+check: PASS 2/2
+verify: PASS

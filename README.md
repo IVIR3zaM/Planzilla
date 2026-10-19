@@ -83,6 +83,10 @@ After vendoring, open Claude Code in the repo:
 The agents live in `.claude/agents/` and the skills in `.claude/skills/` of the repo, so no `~/.claude`
 configuration is needed.
 
+When a node's model is one Claude Code cannot run natively (a `gpt-` model, or any model with an `@<effort>`),
+`/plz-run-plan` dispatches the `plz-run` agent, which runs `planzilla run` for that step and relays the one-line
+reply.
+
 ## Use it in other harnesses
 
 Planzilla's roles are plain Markdown, not tied to one tool. The vendored repo carries four things any harness can
@@ -107,6 +111,10 @@ there with a symlink or copy; the skill files are the same bytes everywhere. Ask
 `plz-new-plan` skill, then the `plz-run-plan` skill. Where the harness has no subagents, start one fresh
 session per role and tell it to follow the role file, for example "follow `.planzilla/roles/executor.md` for
 plan `<slug>`, node `N03`". The same files and CLI work from there on.
+
+To run nodes, such a harness uses its own subagents where they can run the node's model; otherwise it runs
+`.planzilla/plz run <role> <model> <line>` as background jobs, one per node, and reads the last line of each
+job's output as the agent's reply (FORMAT §9 and §14).
 
 ## Tiers
 
@@ -138,10 +146,28 @@ first run and proposes them to you. A plan's own header wins over the config.
 | `push` | `per-node` or `none` | `none` |
 | `retention` | `keep`, `prune-logs`, `delete` or `branch-only`: what happens to plan records in the finishing commit | `keep` |
 | `visual_recipe` | one line: how to start the app and which URL to open | empty |
-| `models` | `planner=<m>, exec=<m>, verify=<m>` (any subset) | `planner=opus, exec=sonnet, verify=sonnet` |
+| `models` | `planner=<m>, exec=<m>, verify=<m>` (any subset); each `<m>` is `<name>` or `<name>@<effort>` | `planner=opus, exec=sonnet, verify=sonnet` |
+| `providers` | `claude`, `codex` or both: the providers whose models the plans may use | `claude` |
 | `preauthorized` | `;`-separated actions agents may take without asking | empty |
 | `always_review` | `yes` or `no`: every exec node gets at least one `[review]` criterion | `no` |
 | `commit_trailer` | text added to commit messages; `\n` separates lines | empty |
+
+## Models and providers
+
+A node's model is a token, `<name>` or `<name>@<effort>`, for example `opus`, `sonnet@high` or `gpt-5.5@xhigh`
+(grammar and effort levels in FORMAT §4). Names starting `gpt-` run on Codex; `opus`, `sonnet`, `haiku`, `fable`
+and `claude-*` run on Claude.
+
+- List the providers you use in `.plan/config.md`: `providers: claude`, `providers: codex` or
+  `providers: claude, codex`. Every model in `models` and in a plan's Graph must belong to a listed provider;
+  `planzilla lint` reports the ones that do not.
+- Set models in `models`, for example `models: planner=opus, exec=gpt-5.5@high, verify=sonnet`, or per node in the
+  plan's Graph.
+- The executor and the verifier may sit on different providers: the cold verifier sees only the brief's
+  criteria, so a Codex-written change can be verified by Claude and the other way round.
+- `planzilla run <role> <model> <line>` runs one agent step through the provider's CLI (`claude` or `codex`,
+  installed and logged in) and prints its one-line reply (FORMAT §9). Each call bills to the plan or account that
+  CLI is logged in to.
 
 ## Verification tags
 
@@ -195,6 +221,8 @@ or plan error, 3 external failure (git, network, lock). Details in FORMAT §9.
 - `planzilla status <plan>` prints the per-node status text.
 - `planzilla stats <plan>` prints the totals line.
 - `planzilla lint <plan>` checks a plan against the planner rules and prints `lint ok: ...` when clean.
+- `planzilla run <role> <model> <line>` runs one planner, executor or verifier step on the model's provider CLI
+  and prints its one-line reply.
 - `planzilla serve <plan> [--port N]` serves the live view.
 
 ## Contributing
