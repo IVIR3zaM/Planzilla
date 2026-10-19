@@ -67,7 +67,7 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 | id | title | type | deps | model | try | rp | status | note |
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/haiku | 1 | 1 | DONE | |
-| N02 | provider table, model tokens, providers key | exec | N01 | sonnet/sonnet | 0 | 0 | TODO | |
+| N02 | provider table, model tokens, providers key | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | lint rule providers | exec | N02 | sonnet/sonnet | 0 | 0 | TODO | |
 | N04 | plz run command | exec | N02 | sonnet/opus | 0 | 0 | TODO | |
 | N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 0 | 0 | TODO | |
@@ -308,4 +308,12 @@ plan: BRIEFED
 check: FAIL C4
 - C4 exit 1:
 check: PASS 7/7
+verify: PASS
+
+### N02 try 1 · 2026-10-19
+exec: DONE · 666 passed
+- New pure providers.py (provider_of, efforts_of, split_token, check_token); plan.py Graph cell, state.py set --model and config.py models use it
+- Config.providers (default claude, subset check, no repeats); models providers must be listed, checked after the parse loop and reported on the models line in either order
+- Template and fixture config gain providers lines
+check: PASS 3/3
 verify: PASS

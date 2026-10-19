@@ -647,3 +647,16 @@ def test_state_module_has_no_io_imports() -> None:
             imported.add((item.module or "").split(".")[0])
     assert imported <= {"__future__", "dataclasses", "re", "planzilla", "collections", "typing"}
     assert "open(" not in source and "print(" not in source
+
+
+def test_edit_model_gpt_effort_rewrites_the_row() -> None:
+    changed, _ = state.set_node(
+        [node("N01")], "N01", None, model="gpt-6-astra@xhigh/sonnet@high", facts={}, budgets=BUDGETS
+    )
+    assert (changed[0].exec_model, changed[0].verify_model) == ("gpt-6-astra@xhigh", "sonnet@high")
+
+
+def test_edit_model_bad_effort_raises() -> None:
+    for bad in ("sonnet@xhigh/-", "gpt-6-astra@huge/-", "gemini-3@high/-", "gpt-6-luna@/-"):
+        with pytest.raises(StateError, match="model"):
+            state.set_node([node("N01")], "N01", None, model=bad, facts={}, budgets=BUDGETS)

@@ -99,3 +99,51 @@ def test_bad_lines_raise(tmp_path: Path, text: str, line: int) -> None:
     with pytest.raises(PlanError) as err:
         load_config(tmp_path)
     assert (err.value.file, err.value.line) == (path, line)
+
+
+def test_providers_default_and_fixture() -> None:
+    assert parse_config("", "c").providers == ("claude",)
+    assert load_config(FIXTURE_REPO).providers == ("claude", "codex")
+    assert parse_config("providers: claude, codex\n", "c").providers == ("claude", "codex")
+    assert parse_config("providers: codex\n", "c").providers == ("codex",)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["providers: openai\n", "providers:\n", "providers: claude, claude\n", "providers: claude,\n"],
+)
+def test_bad_providers_raise(text: str) -> None:
+    with pytest.raises(PlanError) as err:
+        parse_config(text, "c")
+    assert err.value.line == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "models: planner=gpt-6.1-sol\n",
+        "models: planner=gpt-6.1-sol\nproviders: claude\n",
+        "providers: claude\nmodels: planner=gpt-6.1-sol\n",
+    ],
+)
+def test_models_provider_must_be_listed_in_either_order(text: str) -> None:
+    with pytest.raises(PlanError) as err:
+        parse_config(text, "c")
+    assert "models" in str(err.value)
+    assert err.value.line == [x.split(":")[0] for x in text.split("\n")].index("models") + 1
+
+
+def test_models_provider_listed_in_either_order() -> None:
+    for text in (
+        "models: planner=gpt-6.1-sol@high\nproviders: claude, codex\n",
+        "providers: claude, codex\nmodels: planner=gpt-6.1-sol@high\n",
+    ):
+        assert parse_config(text, "c").models["planner"] == "gpt-6.1-sol@high"
+
+
+def test_models_effort_and_unknown_provider_tokens() -> None:
+    assert parse_config("models: exec=sonnet@max\n", "c").models["exec"] == "sonnet@max"
+    assert parse_config("models: exec=gemini-3\n", "c").models["exec"] == "gemini-3"
+    for bad in ("sonnet@xhigh", "gemini-3@high", "gpt-6-luna@"):
+        with pytest.raises(PlanError):
+            parse_config(f"providers: claude, codex\nmodels: exec={bad}\n", "c")

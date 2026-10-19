@@ -470,3 +470,37 @@ def test_save_appends_new_node_after_last_row(l_plan: Path) -> None:
     assert lines[row - 1].startswith("| N05 |")
     assert lines[row + 1] == ""
     assert [n.id for n in reloaded.nodes][-1] == "N06"
+
+
+@pytest.mark.parametrize(
+    ("cell", "pair"),
+    [
+        ("gpt-6.1-sol@high/opus", ("gpt-6.1-sol@high", "opus")),
+        ("sonnet@max/gpt-6-luna", ("sonnet@max", "gpt-6-luna")),
+        ("claude-opus-4-7@low/-", ("claude-opus-4-7@low", "-")),
+        ("gemini-3/-", ("gemini-3", "-")),
+    ],
+)
+def test_model_cell_with_provider_effort_parses(
+    s_plan: Path, cell: str, pair: tuple[str, str]
+) -> None:
+    text = s_plan.read_text(encoding="utf-8")
+    line = next(x for x in text.split("\n") if x.startswith("| N01 |"))
+    cells = line.split("|")
+    cells[5] = f" {cell} "
+    edit(s_plan, line, "|".join(cells))
+    node = load_plan(s_plan).node("N01")
+    assert (node.exec_model, node.verify_model) == pair
+
+
+@pytest.mark.parametrize(
+    "cell", ["sonnet@xhigh/-", "gpt-6-astra@huge/-", "gemini-3@high/-", "gpt-6-luna@/-"]
+)
+def test_model_cell_bad_effort_raises(s_plan: Path, cell: str) -> None:
+    text = s_plan.read_text(encoding="utf-8")
+    line = next(x for x in text.split("\n") if x.startswith("| N01 |"))
+    cells = line.split("|")
+    cells[5] = f" {cell} "
+    edit(s_plan, line, "|".join(cells))
+    with pytest.raises(PlanError, match="model"):
+        load_plan(s_plan)

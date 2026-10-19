@@ -151,3 +151,15 @@ def test_slug_fragment(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert cli.main(["next", "demo"]) == 0
     assert capsys.readouterr().out == "N01 brief opus\n"
+
+
+def test_next_prints_gpt_effort_token_verbatim(tmp_path, capsys):
+    plan = make_plan(
+        tmp_path,
+        [row("N01", "TODO")],
+        config="providers: claude, codex\nmodels: planner=gpt-6.1-sol@high\n",
+    )
+    text = (plan / "plan.md").read_text().replace("haiku/opus", "gpt-6.1-sol@high/opus")
+    (plan / "plan.md").write_text(text)
+    write_brief(plan, "N01", "cmd")
+    assert plz_next(capsys, plan) == (0, "N01 exec gpt-6.1-sol@high\n", "")
