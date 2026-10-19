@@ -69,7 +69,7 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 | N01 | preflight | check | - | -/haiku | 1 | 1 | DONE | |
 | N02 | provider table, model tokens, providers key | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | lint rule providers | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
-| N04 | plz run command | exec | N02 | sonnet/opus | 1 | 1 | RUNNING | |
+| N04 | plz run command | exec | N02 | sonnet/opus | 2 | 1 | DONE | |
 | N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 0 | 0 | TODO | |
 | N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 0 | 0 | TODO | |
 | N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 0 | 0 | TODO | |
@@ -339,4 +339,19 @@ exec: DONE · 672 passed
 - lint rule providers: lint_plan takes providers, run loads the plan repo's config (parse error -> parse problem)
 - message uses the Graph token as written, on the row line
 check: PASS 2/2
+verify: PASS
+
+### N04 try 1 · 2026-10-19
+exec: DONE · 743 passed, 1 skipped
+- runner.py pure core and commands/run.py (all IO, temp dir removed in finally), run appended to COMMANDS; tests and run-smoke fixture added
+- choice: visual rejected as a role; an exit-nonzero with no output lines reads 'exited <n>' without a colon; OSError on a call reads 'not found on PATH'
+check: PASS 5/5
+verify: FAIL C5
+- C5 src/planzilla/commands/run.py - not evidenced: the criterion requires run.py to match every Context rule above, but the cold brief (brief --verify) shows no Context, so that part cannot be judged from evidence; the other parts of C5 hold (runner.py imports only json and providers, no IO or env; temp dir removed in finally; only the last reply line is printed; all run tests fake subprocess.run and shutil.which)
+
+### N04 try 2 · 2026-10-19
+exec: DONE · 743 passed, 1 skipped
+- C5 finding was a cold-brief evidence gap; re-checked run.py against every Context rule, no code change needed
+- pure runner.py (json + providers only), all IO in run.py with temp dir removed in finally
+check: PASS 5/5
 verify: PASS
