@@ -32,8 +32,10 @@ package's `planzilla/kit/`) with the agreed values; keep every other key at its 
 
 ## 3. Plan
 
-Slug: 2-5 kebab-case words for the outcome. Dispatch `plz-planner` (model: config `models` planner, default
-opus) with exactly one line:
+Slug: 2-5 kebab-case words for the outcome. Every planner dispatch here (Outline, Revise) goes to `plz-planner`
+with model `<m>` (config `models` planner, default opus) by plz-run-plan's Dispatch rule: natively when the
+harness's subagent tool accepts `<m>` and it has no `@<effort>`, else through `plz run planner <m> '<line>'`
+(via `plz-run` where the harness has subagents). Outline with exactly one line:
 `Outline: <slug> · Request: <the agreed intent: goal; in scope; out of scope; constraints; definition of done; tier <T>>`
 Pass what was agreed, not the user's raw wording. The planner stores it as the Intent in its own words (L:
 `intent.md`; S/M: the `## Intent` section; never the raw prompt) and writes the plan as DRAFT:

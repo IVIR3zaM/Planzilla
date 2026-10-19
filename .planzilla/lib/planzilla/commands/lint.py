@@ -12,7 +12,9 @@ from functools import cache
 from pathlib import Path
 
 from planzilla.commands._common import ResolveError, fail, resolve_plan
+from planzilla.config import load_config
 from planzilla.plan import TAGS, Brief, Plan, PlanError, load_brief, load_plan
+from planzilla.providers import provider_of, split_token
 from planzilla.state import StateError, waves
 
 MAX_BRIEF_LINES = 40
@@ -131,9 +133,22 @@ def _overlap_problems(plan: Plan, briefs: dict[str, Brief], level: dict[str, int
     return problems
 
 
-def lint_plan(plan: Plan) -> tuple[list[Problem], int]:
+def _provider_problems(plan: Plan, providers: Sequence[str]) -> list[Problem]:
+    """A Graph exec or verify token whose provider config `providers` does not list."""
+    problems = []
+    for node in plan.nodes:
+        for token in (node.exec_model, node.verify_model):
+            provider = None if token == "-" else provider_of(split_token(token)[0])
+            if provider is not None and provider not in providers:
+                message = f"{node.id} model {token} needs config providers to list {provider}"
+                problems.append(Problem(plan.graph_file, node.line or 1, "providers", message))
+    return problems
+
+
+def lint_plan(plan: Plan, providers: Sequence[str]) -> tuple[list[Problem], int]:
     """All problems of a parsed plan, and its number of waves."""
     problems, level = _graph_problems(plan)
+    problems += _provider_problems(plan, providers)
     briefs: dict[str, Brief] = {}
     for node in plan.nodes:
         try:
@@ -182,7 +197,14 @@ def run(args: argparse.Namespace) -> int:
     except (OSError, UnicodeDecodeError) as error:
         return fail(f"cannot read {graph_file}: {error}", 2)
     try:
-        problems, wave_count = lint_plan(plan)
+        config = load_config(root)
+    except PlanError as error:
+        print(format_problem(Problem(error.file, error.line, "parse", error.message), root))
+        return 1
+    except (OSError, UnicodeDecodeError) as error:
+        return fail(f"cannot read {root / '.plan' / 'config.md'}: {error}", 2)
+    try:
+        problems, wave_count = lint_plan(plan, config.providers)
     except (OSError, UnicodeDecodeError) as error:
         return fail(f"cannot read plan files: {error}", 2)
     if problems:

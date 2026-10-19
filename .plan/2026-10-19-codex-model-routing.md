@@ -71,8 +71,8 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 | N03 | lint rule providers | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
 | N04 | plz run command | exec | N02 | sonnet/opus | 2 | 1 | DONE | |
 | N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 1 | 0 | DONE | |
-| N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 0 | 0 | TODO | |
-| N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 0 | 0 | TODO | |
+| N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 1 | 0 | VERIFYING | |
+| N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 1 | 0 | DONE | |
 | N08 | plan acceptance | check | N06,N07 | -/sonnet | 0 | 0 | TODO | |
 
 ## N01 preflight
@@ -363,3 +363,19 @@ exec: DONE · 747 passed, 1 skipped
 - Tests: five adapters with plz-run checked for tools, model and plz run call; skills allow plz-run; planner guidance test
 check: PASS 3/3
 verify: PASS
+
+### N06 try 1 · 2026-10-19
+exec: DONE · 747 passed
+- FORMAT §4 token grammar and provider table, §6 cross-provider note, §8 providers row and limits, §9 run row, details and providers lint rule, §11 plz-run, §14 dispatch row and native-or-plz-run rule
+- README providers row, Models and providers section, planzilla run, plz-run and other-harness text; FORMAT linked, not copied
+
+### N07 try 1 · 2026-10-19
+exec: DONE · tests: 747 passed, 1 skipped
+- Ran uv run planzilla install; a second run reported 0 added, 0 changed, 0 removed
+- Kit re-vendored; C2 diffs and C3 help check pass; no hand edits to vendored files
+
+### N06 try 1 · 2026-10-19
+check: PASS 2/2
+
+### N07 try 1 · 2026-10-19
+check: PASS 4/4
