@@ -68,8 +68,8 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/haiku | 1 | 1 | DONE | |
 | N02 | provider table, model tokens, providers key | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
-| N03 | lint rule providers | exec | N02 | sonnet/sonnet | 0 | 0 | TODO | |
-| N04 | plz run command | exec | N02 | sonnet/opus | 0 | 0 | TODO | |
+| N03 | lint rule providers | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
+| N04 | plz run command | exec | N02 | sonnet/opus | 1 | 1 | RUNNING | |
 | N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 0 | 0 | TODO | |
 | N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 0 | 0 | TODO | |
 | N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 0 | 0 | TODO | |
@@ -155,36 +155,44 @@ Done when:
 - C3 [cmd] `uv run pytest -q`
 
 ## N04 plz run command
-Do: Add the command `plz run <role> <model> <line>`, test first, plus the smoke fixture. Pure core in a new
-`src/planzilla/runner.py`: validate role, model and line, build the prompt and the argv for the token's
-provider, pick the reply from the output text. All IO in `src/planzilla/commands/run.py`: `shutil.which`, the
-login check, then the CLI with the prompt on stdin and stdout/stderr captured (never printed); codex's last
-message is read from a temp file that is then removed; print the reply. Append `run` last to `cli.COMMANDS`
-(src/planzilla/cli.py:10-23) and to tests/test_cli.py:10.
-Context: D5 holds the contract: roles, exit-2 inputs, prompt (three lines, on stdin), codex argv, claude argv,
-login checks, reply rule, the four exit-3 `error:` lines. D14 adds to the claude argv, after the D5 flags:
-`--tools <T> --allowedTools <T> --permission-mode dontAsk`, T planner `Read,Grep,Glob,Write,Edit,Bash`,
-executor `Read,Grep,Glob,Edit,Write,Bash`, verifier `Read,Grep,Glob,Bash`. Effort pairs only with a suffix:
-codex `-c` `model_reasoning_effort="<e>"`, claude `--effort <e>`; `-m`/`--model` get the name without the
-suffix. Provider and effort come from src/planzilla/providers.py (N02). Argument list only, no shell; the
-child gets the parent environment unchanged. D9 fixture `tests/fixtures/run-smoke/`: `.plan/config.md` with
-`providers: claude, codex`; `.plan/2026-10-19-smoke.md`, header status RUNNING, one check node `N01 smoke`, model
-`-/gpt-6-luna@low`, VERIFYING, try 1, brief: a Do line and `- C1 [review] hello.txt in the repo root holds the
-word hello`; `hello.txt` with `hello`. D12: tests stub `subprocess.run` and `shutil.which`.
-Read: `src/planzilla/cli.py`, `src/planzilla/commands/check.py`, `src/planzilla/commands/_common.py`, `src/planzilla/providers.py`, `tests/test_cli.py`
+Do: Add `plz run <role> <model> <line>`, test first, plus a smoke fixture. Pure core in a new `src/planzilla/runner.py`
+(validate, build prompt and argv, pick the reply); all IO in `src/planzilla/commands/run.py`. Append `run` last to
+`cli.COMMANDS` (src/planzilla/cli.py:10-23) and to the list at tests/test_cli.py:10.
+Context: the whole contract (D5, D14), exactly:
+- Exit 2, one `error:` line via `fail` (src/planzilla/commands/_common.py:38): role not planner, executor or verifier
+  (visual too); model without a provider (`provider_of`, src/planzilla/providers.py:14) or that `split_token` (:27)
+  rejects; line empty, whitespace only or holding a line break. No config is read.
+- Prompt on stdin, three lines each ending `\n`: `Follow .planzilla/roles/<role>.md: read it first; it is your whole
+  role.` / `Input: <line>` / `Reply with exactly the one line that role names, nothing else.`
+- codex: `codex exec -m <name> [-c model_reasoning_effort="<e>"] -s workspace-write -c
+  sandbox_workspace_write.network_access=true -C <cwd> -o <temp file> -` (`model_reasoning_effort="<e>"` is one item).
+- claude: `claude -p --model <name> [--effort <e>] --output-format text --no-session-persistence --tools <T>
+  --allowedTools <T> --permission-mode dontAsk`; T planner `Read,Grep,Glob,Write,Edit,Bash`, executor
+  `Read,Grep,Glob,Edit,Write,Bash`, verifier `Read,Grep,Glob,Bash`; never a bypass or skip-permissions flag.
+- `<name>` is the token without `@<e>`; the bracketed items appear only when the token has an effort.
+- run.py order: `shutil.which(<cli>)`; login (`codex login status` exit 0; `claude auth status` exit 0 with stdout JSON
+  `loggedIn` true, unparseable = not logged in); then the CLI in the cwd (repo root), prompt as input, stdout and
+  stderr captured as text, never printed; argv list, no shell, parent env unchanged, no timeout. codex's `-o` file
+  lives in a temp dir outside the repo, removed in a `finally`.
+- Reply: the last non-blank line, stripped, of codex's `-o` file (missing = empty) or claude's stdout; print only it, exit 0.
+- Exit 3, one `error:` line, `<cli>` = codex or claude: `<cli> not found on PATH`; `<cli> is not logged in; run codex
+  login` (claude: `run claude auth login`); non-zero exit: `<cli> exited <n>: <last non-blank stderr line, else last
+  non-blank stdout line>`; `<cli> gave an empty reply`.
+- D9 fixture `tests/fixtures/run-smoke/`: `.plan/config.md` = `providers: claude, codex`; `.plan/2026-10-19-smoke.md`
+  shaped like tests/fixtures/lint/clean/.plan/2026-10-01-demo.md, status RUNNING, one check node `N01 smoke`, deps -,
+  model `-/gpt-6-luna@low`, try 1, rp 0, VERIFYING, brief a Do line and `- C1 [review] hello.txt in the repo root
+  holds the word hello`; `hello.txt` = `hello`. D12: tests monkeypatch `subprocess.run` and `shutil.which`.
+Read: `src/planzilla/cli.py`, `src/planzilla/commands/_common.py`, `src/planzilla/providers.py`, `tests/test_cli.py`
 Write: `src/planzilla/runner.py`, `src/planzilla/commands/run.py`, `src/planzilla/cli.py`, `tests/test_runner.py`,
   `tests/commands/test_run.py`, `tests/test_cli.py`, `tests/fixtures/run-smoke/**`
-Test first: the exact argv for each provider and role, with and without effort; the prompt; reply picking;
-each exit-2 input; each exit-3 case per CLI (stderr, then stdout fallback) and the success line with stubbed
-subprocess and which; the smoke fixture lints ok. See them fail first.
+Test first: exact argv per provider and role, with and without effort; prompt; reply picking; each exit-2 input; per
+CLI each exit-3 line (stderr, then stdout fallback) and the success line; the fixture lints ok. See them fail first.
 Done when:
 - C1 [cmd] `uv run pytest -q tests/test_runner.py tests/commands/test_run.py tests/test_cli.py`
 - C2 [cmd] `for m in gpt-6-luna haiku@low; do uv run python -c "import os, sys; os.environ['PATH'] = '/nonexistent'; from planzilla.cli import main; sys.exit(main(['run', 'verifier', sys.argv[1], 'Plan: x · Node: N01 · Try: 1']))" "$m"; test $? -eq 3 || exit 1; done`
 - C3 [cmd] `for a in 'visual haiku' 'verifier gemini-3' 'verifier sonnet@xhigh' 'planner gpt-6-luna@huge'; do uv run planzilla run $a x; test $? -eq 2 || exit 1; done`
 - C4 [cmd] `cd tests/fixtures/run-smoke && uv run planzilla lint smoke | grep -q '^lint ok'`
-- C5 [review] runner.py does no IO and reads no environment; commands/run.py holds all IO, passes an argv list
-  (no shell), prints only the reply or one `error:` line and removes its temp file; the claude argv never holds
-  a bypass flag; no test can start a real CLI or reach the network.
+- C5 [review] runner.py is pure (no IO, no env); run.py holds all IO, matches every Context rule above, removes its temp dir, never prints the CLI's output; no test can start a real CLI or reach the network.
 - C6 [cmd] `uv run pytest -q`
 
 ## N05 plz-run adapter, dispatch rule, planner guidance
@@ -316,4 +324,19 @@ exec: DONE · 666 passed
 - Config.providers (default claude, subset check, no repeats); models providers must be listed, checked after the parse loop and reported on the models line in either order
 - Template and fixture config gain providers lines
 check: PASS 3/3
+verify: PASS
+
+### N04 try 1 · 2026-10-19
+exec: BLOCKED · brief cites decision D5 (prompt lines, codex/claude argv, login checks, reply rule, four exit-3 error lines) but does not include it
+
+### N04 replan 1 · 2026-10-19
+plan: REPLANNED
+- exec blocked: brief cited D5 without restating its contract (prompt, argv, login checks, reply rule, exit-3 lines)
+- brief rewritten self-contained: exit-2 inputs, exact prompt, codex and claude argv with D14 flags and effort, run order, reply rule, four exit-3 error lines, fixture shape; criteria unchanged
+
+### N03 try 1 · 2026-10-19
+exec: DONE · 672 passed
+- lint rule providers: lint_plan takes providers, run loads the plan repo's config (parse error -> parse problem)
+- message uses the Graph token as written, on the row line
+check: PASS 2/2
 verify: PASS

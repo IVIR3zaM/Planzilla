@@ -158,3 +158,65 @@ def test_a_plan_is_found_by_slug_fragment(run):
 def test_items_overlap(a, b, expected):
     assert items_overlap(a, b) is expected
     assert items_overlap(b, a) is expected
+
+
+# --- providers (D4) ------------------------------------------------------------
+
+
+def _line(node: str, token: str, provider: str, row: int) -> str:
+    return (
+        f"{SM}:{row}: providers: {node} model {token} needs config providers to list {provider}\n"
+    )
+
+
+CODEX_LINES = _line("N01", "gpt-6.1-sol@high", "codex", 16) + _line(
+    "N02", "gpt-6-astra", "codex", 17
+)
+CLAUDE_LINES = _line("N01", "opus", "claude", 16) + _line("N02", "sonnet", "claude", 17)
+
+
+def _providers_repo(tmp_path: Path, monkeypatch, config: str | None) -> Path:
+    root = tmp_path / "providers"
+    shutil.copytree(FIXTURES / "providers", root)
+    if config is not None:
+        (root / ".plan" / "config.md").write_text(config)
+    monkeypatch.chdir(root)
+    return root
+
+
+def test_providers_listing_both_lints_ok(tmp_path, monkeypatch, capsys):
+    _providers_repo(tmp_path, monkeypatch, "providers: claude, codex\n")
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 3 nodes, 1 waves\n"
+
+
+@pytest.mark.parametrize("config", [None, "providers: claude\n"])
+def test_providers_without_codex_flags_the_codex_tokens(tmp_path, monkeypatch, capsys, config):
+    _providers_repo(tmp_path, monkeypatch, config)
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == CODEX_LINES
+
+
+def test_providers_without_claude_flags_the_claude_tokens(tmp_path, monkeypatch, capsys):
+    _providers_repo(tmp_path, monkeypatch, "providers: codex\n")
+    assert cli.main(["lint", SM]) == 1
+    out = capsys.readouterr().out
+    assert out == CLAUDE_LINES
+    assert "gemini-3" not in out
+
+
+def test_providers_reads_the_config_of_the_plans_repo_not_the_cwd(tmp_path, monkeypatch, capsys):
+    root = _providers_repo(tmp_path, monkeypatch, "providers: claude, codex\n")
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / ".plan").mkdir(parents=True)
+    (elsewhere / ".plan" / "config.md").write_text("providers: claude\n")
+    monkeypatch.chdir(elsewhere)
+    assert cli.main(["lint", str(root / SM)]) == 0
+
+
+def test_a_broken_config_is_a_parse_problem_on_the_config_line(tmp_path, monkeypatch, capsys):
+    _providers_repo(tmp_path, monkeypatch, "commit: none\nnonsense\n")
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == (
+        ".plan/config.md:2: parse: expected 'key: value', got 'nonsense'\n"
+    )
