@@ -70,7 +70,7 @@ of it, including running nodes with `plz run` from harnesses without subagents; 
 | N02 | provider table, model tokens, providers key | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | lint rule providers | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
 | N04 | plz run command | exec | N02 | sonnet/opus | 2 | 1 | DONE | |
-| N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 0 | 0 | TODO | |
+| N05 | plz-run adapter, dispatch rule, planner guidance | exec | N04 | opus/sonnet | 1 | 0 | DONE | |
 | N06 | FORMAT and README for providers | exec | N03,N05 | sonnet/sonnet | 0 | 0 | TODO | |
 | N07 | re-vendor the kit | exec | N03,N05 | haiku/- | 0 | 0 | TODO | |
 | N08 | plan acceptance | check | N06,N07 | -/sonnet | 0 | 0 | TODO | |
@@ -354,4 +354,12 @@ exec: DONE · 743 passed, 1 skipped
 - C5 finding was a cold-brief evidence gap; re-checked run.py against every Context rule, no code change needed
 - pure runner.py (json + providers only), all IO in run.py with temp dir removed in finally
 check: PASS 5/5
+verify: PASS
+
+### N05 try 1 · 2026-10-19
+exec: DONE · 747 passed, 1 skipped
+- New plz-run adapter (Bash, haiku) starts plz run in the D6 background shape and waits in calls under 5 minutes; plz-run-plan gains the D13 Dispatch rule, plz-new-plan routes Outline and Revise by it; planner role holds the provider guidance in 30 lines
+- Adapter single-quotes role, model and line, rejects role or model outside a safe charset, and replies the last out line on rc 0 else the last err line
+- Tests: five adapters with plz-run checked for tools, model and plz run call; skills allow plz-run; planner guidance test
+check: PASS 3/3
 verify: PASS

@@ -10,6 +10,7 @@ from planzilla import cli
 SKILLS_DIR = Path(__file__).resolve().parents[2] / "src" / "planzilla" / "kit" / "skills"
 SKILLS = ["plz-new-plan", "plz-run-plan"]
 AGENTS = {"plz-planner", "plz-executor", "plz-verifier", "plz-visual"}
+RUN_ADAPTER = "plz-run"
 
 
 def skill_text(name: str) -> str:
@@ -53,7 +54,8 @@ def test_at_most_80_lines(name: str) -> None:
 @pytest.mark.parametrize("name", SKILLS)
 def test_only_plz_agent_and_skill_names(name: str) -> None:
     names = set(re.findall(r"\bplz-[a-z-]*[a-z]", skill_text(name)))
-    assert names <= AGENTS | set(SKILLS), names - AGENTS - set(SKILLS)
+    allowed = AGENTS | {RUN_ADAPTER} | set(SKILLS)
+    assert names <= allowed, names - allowed
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -73,6 +75,16 @@ def test_run_plan_dispatches_every_agent() -> None:
     text = skill_text("plz-run-plan")
     for agent in AGENTS:
         assert agent in text
+
+
+def test_run_plan_routes_provider_tokens_through_plz_run() -> None:
+    text = skill_text("plz-run-plan")
+    assert re.search(r"\bplz-run\b(?!-)", text), "plz-run-plan must name the plz-run adapter"
+    assert "plz run" in text
+
+
+def test_new_plan_dispatches_the_planner_by_the_same_rule() -> None:
+    assert "plz run" in skill_text("plz-new-plan")
 
 
 def test_new_plan_never_stores_the_raw_prompt() -> None:

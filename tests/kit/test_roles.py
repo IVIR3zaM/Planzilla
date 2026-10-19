@@ -22,8 +22,8 @@ def frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
-def test_four_adapters_ship() -> None:
-    assert [p.stem for p in ADAPTERS] == sorted(f"plz-{role}" for role in ROLES)
+def test_five_adapters_ship() -> None:
+    assert [p.stem for p in ADAPTERS] == sorted([*(f"plz-{role}" for role in ROLES), "plz-run"])
 
 
 @pytest.mark.parametrize("path", ADAPTERS, ids=lambda p: p.name)
@@ -34,6 +34,12 @@ def test_adapter_frontmatter_and_role(path: Path) -> None:
         assert fields.get(key), f"{path.name}: missing {key}"
     assert fields["name"].startswith("plz-")
     assert fields["name"] == path.stem
+    if path.stem == "plz-run":  # D6: the adapter starts `plz run`, it follows no role file
+        assert fields["tools"] == "Bash"
+        assert fields["model"] == "haiku"
+        assert ".planzilla/plz run" in text
+        assert ".planzilla/roles/" not in text
+        return
     roles = re.findall(r"\.planzilla/roles/([a-z]+)\.md", text)
     assert roles, f"{path.name}: references no role"
     for role in roles:
@@ -55,3 +61,11 @@ def test_template_ends_with_format_rules_comment(name: str) -> None:
         assert text.splitlines()[-1].startswith("#")
     else:
         assert text.endswith("-->")
+
+
+def test_planner_guides_model_choice_across_providers() -> None:
+    text = (KIT / "roles" / "planner.md").read_text(encoding="utf-8")
+    words = ("providers", "@<effort>", "gpt-6.1-sol", "gpt-6-luna", "fable", "natively", "--model")
+    for word in words:
+        assert word in text, f"planner role lacks {word}"
+    assert "`plz-planner`, `plz-executor`, `plz-verifier`, `plz-visual`" in text  # L8 kept
