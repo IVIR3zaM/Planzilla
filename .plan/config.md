@@ -7,6 +7,8 @@ push: per-node
 retention: keep
 # visual_recipe: <one line: how to start the app and which URL to open>
 models: planner=opus, exec=sonnet, verify=sonnet
+providers: claude, codex
+harness: claude-code
 # preauthorized: <action agents may take without asking>; <another action>
 always_review: no
 # commit_trailer: <text; \n separates lines>

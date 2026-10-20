@@ -34,7 +34,7 @@ def test_help_lists_all_commands(plz):
 def test_version(plz):
     result = plz("--version")
     assert result.returncode == 0
-    assert result.stdout.strip() == "planzilla 0.1.0"
+    assert result.stdout.strip() == "planzilla 0.2.0"
 
 
 def test_command_order_matches_format():

@@ -39,9 +39,12 @@ def build_prompt(role: str, line: str) -> str:
 def build_argv(
     role: str, cli: str, name: str, effort: str | None, cwd: str, out_file: str | None
 ) -> list[str]:
-    """The CLI call; codex needs `out_file` for its reply, claude replies on stdout."""
+    """The CLI call; codex needs `out_file` for its reply, claude replies on stdout.
+
+    A bare token (`name == cli`) leaves the model flag out: the CLI picks its default model.
+    """
     if cli == "codex":
-        argv = ["codex", "exec", "-m", name]
+        argv = ["codex", "exec"] + ([] if name == cli else ["-m", name])
         if effort is not None:
             argv += ["-c", f'model_reasoning_effort="{effort}"']
         return argv + [
@@ -56,7 +59,7 @@ def build_argv(
             "-",
         ]
     tools = _CLAUDE_TOOLS[role]
-    argv = ["claude", "-p", "--model", name]
+    argv = ["claude", "-p"] + ([] if name == cli else ["--model", name])
     if effort is not None:
         argv += ["--effort", effort]
     return argv + [

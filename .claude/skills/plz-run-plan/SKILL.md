@@ -60,15 +60,15 @@ Every state change goes through `plz set` before the dispatch that depends on it
   `Plan: <plan> · Node: <id> · Try: <t>`.
 - `<id> DONE …` → `plz commit <plan> <id>`; exit 3 stops the run. `· plan DONE` in its line: finish.
 - `<id> WAITING …` or `<id> BLOCKED …` → add the id to held. `TODO` or `RETRY` → nothing; `next` picks it up.
-Dispatch rule, for every dispatch (step 5 too): the named agent gets model `<m>`, the exact line and nothing else.
-- Native when the harness's subagent tool accepts `<m>` and `<m>` has no `@<effort>` (FORMAT §4; in Claude
-  Code: bare opus, sonnet, haiku, fable): the named agent with model `<m>`.
-- Else `plz run <role> <m> '<line>'`, role from the named agent (planner, executor, verifier): with subagents,
-  dispatch `plz-run` with `Run: <role> <m> · <line>`; without, one background shell job per line writes `out`,
-  `err`, `rc` to its own temp dir; wait in calls of at most 5 minutes; reply = last line of `out` (rc 0) or
-  `err`; remove the dir. One batch sends native and `plz run` dispatches together, in parallel.
-- Route a `plz run` reply as its role's reply (step 4); an `error: …` line is a crash. `plz-visual` never goes
-  to `plz run`. A line no route can dispatch stops the run: tell the user `<id>: cannot dispatch <agent> <m>`.
+Dispatch rule, for every dispatch (step 5 too), by the harness you run in (config `harness`, FORMAT §14): the
+named agent gets model `<m>`, the exact line and nothing else.
+- Native only in Claude Code, for opus, sonnet, haiku or fable without `@<effort>`; a bare `claude` or `codex` never.
+- Else `plz run <role> <m> '<line>'`, role from the named agent (planner, executor, verifier): in Claude Code,
+  dispatch `plz-run` with `Run: <role> <m> · <line>`; in Codex, one background shell job per line writes `out`,
+  `err`, `rc` to its own temp dir; wait in calls of at most 5 minutes; reply = last line of `out` (rc 0) or `err`;
+  remove the dir. One batch sends native and `plz run` dispatches together, in parallel.
+- Route a `plz run` reply as its role's reply (step 4); an `error: …` line is a crash. `plz-visual` never goes to
+  `plz run`; a line no route can dispatch (`plz-visual` in Codex) stops the run: tell the user `<id>: cannot dispatch <agent> <m>`.
 
 Tiers: an S plan escalates to M on its first BLOCKED executor; route it the same way (`REPLAN`, `Replan:`);
 the planner sets `tier: M` and may add rows through `plz set --add`. Tiers never go back.

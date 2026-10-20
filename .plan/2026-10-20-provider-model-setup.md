@@ -72,8 +72,8 @@ sdist.
 | N03 | bare provider tokens in plz run | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
 | N04 | harness key and lint rule visual | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
 | N05 | planner role and both skills | exec | N02 | opus/sonnet | 1 | 0 | DONE | |
-| N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 0 | 0 | TODO | |
-| N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 0 | 0 | TODO | |
+| N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 1 | 0 | VERIFYING | |
+| N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 1 | 0 | DONE | |
 | N08 | PR, merge and tag v0.2.0 | exec | N06,N07 | sonnet/- | 0 | 0 | TODO | |
 | N09 | plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
 
@@ -396,3 +396,19 @@ exec: DONE · 785 passed
 - under a harness with no visual agent only the criterion message is emitted (row message would be redundant)
 check: PASS 3/3
 verify: PASS
+
+### N07 try 1 · 2026-10-20
+exec: DONE · 785 passed, 1 skipped
+- Version set to 0.2.0 in __init__.py and test_cli.py; re-vendored with planzilla install (16 files changed)
+- Added providers and harness lines to .plan/config.md after models; no other line changed
+
+### N06 try 1 · 2026-10-20
+exec: DONE · 785 passed
+- README rewritten: models/providers, planner picks, native vs plz run, Codex dispatch, both-provider setup, harness row, plz-new-plan detection, upgrading, releasing
+- Kept Tiers and Config adjacent for test_preflight; linked FORMAT sections instead of copying grammar
+
+### N07 try 1 · 2026-10-20
+check: PASS 5/5
+
+### N06 try 1 · 2026-10-20
+check: PASS 2/2

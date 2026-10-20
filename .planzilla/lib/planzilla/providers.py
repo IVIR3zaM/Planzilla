@@ -8,11 +8,17 @@ _EFFORTS = {
     "codex": ("low", "medium", "high", "xhigh", "max"),
 }
 _CLAUDE_NAMES = ("opus", "sonnet", "haiku", "fable")
+HARNESSES = ("claude-code", "codex")
+# Harness facts (FORMAT §14): models run natively (no `@<effort>`); has a visual agent.
+_NATIVE = {"claude-code": _CLAUDE_NAMES, "codex": ()}
+_VISUAL_AGENT = {"claude-code": True, "codex": False}
 _TOKEN_RE = re.compile(r"([a-z0-9.-]+)(?:@([a-z]+))?")
 
 
 def provider_of(name: str) -> str | None:
-    """The provider of a model name, or None for any other name."""
+    """The provider of a model name (a bare provider token is its own), or None."""
+    if name in PROVIDERS:
+        return name
     if name in _CLAUDE_NAMES or name.startswith("claude-"):
         return "claude"
     if name.startswith("gpt-"):
@@ -44,3 +50,12 @@ def check_token(token: str) -> str:
     """The one token check: return the token unchanged or raise ValueError."""
     split_token(token)
     return token
+
+
+def runs_natively(harness: str, token: str) -> bool:
+    """True when the harness dispatches the model token with its own agents (no `plz run`)."""
+    return token in _NATIVE[harness]
+
+
+def has_visual_agent(harness: str) -> bool:
+    return _VISUAL_AGENT[harness]

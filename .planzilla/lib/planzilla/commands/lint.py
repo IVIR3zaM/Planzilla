@@ -14,7 +14,7 @@ from pathlib import Path
 from planzilla.commands._common import ResolveError, fail, resolve_plan
 from planzilla.config import load_config
 from planzilla.plan import TAGS, Brief, Plan, PlanError, load_brief, load_plan
-from planzilla.providers import provider_of, split_token
+from planzilla.providers import has_visual_agent, provider_of, runs_natively, split_token
 from planzilla.state import StateError, waves
 
 MAX_BRIEF_LINES = 40
@@ -145,7 +145,26 @@ def _provider_problems(plan: Plan, providers: Sequence[str]) -> list[Problem]:
     return problems
 
 
-def lint_plan(plan: Plan, providers: Sequence[str]) -> tuple[list[Problem], int]:
+def _visual_problems(plan: Plan, brief: Brief, harness: str, verify: str) -> list[Problem]:
+    """A `[visual]` criterion the harness cannot serve: no visual agent, or a verify model it
+    does not run natively (`verify` is config `models` verify, used when the Graph says `-`)."""
+    lines = [criterion.line for criterion in brief.criteria if criterion.tag == "visual"]
+    if not lines:
+        return []
+    node = plan.node(brief.id)
+    if not has_visual_agent(harness):
+        message = f"{node.id} [visual] needs a visual agent; harness {harness} has none"
+        return [Problem(brief.file, line, "visual", message) for line in lines]
+    token = verify if node.verify_model == "-" else node.verify_model
+    if runs_natively(harness, token):
+        return []
+    message = f"{node.id} verify {token} is not a model harness {harness} runs natively"
+    return [Problem(plan.graph_file, node.line or 1, "visual", message)]
+
+
+def lint_plan(
+    plan: Plan, providers: Sequence[str], harness: str, verify: str
+) -> tuple[list[Problem], int]:
     """All problems of a parsed plan, and its number of waves."""
     problems, level = _graph_problems(plan)
     problems += _provider_problems(plan, providers)
@@ -159,6 +178,7 @@ def lint_plan(plan: Plan, providers: Sequence[str]) -> tuple[list[Problem], int]
         if brief is not None:
             briefs[node.id] = brief
             problems += _brief_problems(brief)
+            problems += _visual_problems(plan, brief, harness, verify)
     if level is not None:
         problems += _overlap_problems(plan, briefs, level)
     return problems, max(level.values(), default=0) if level else 0
@@ -204,7 +224,9 @@ def run(args: argparse.Namespace) -> int:
     except (OSError, UnicodeDecodeError) as error:
         return fail(f"cannot read {root / '.plan' / 'config.md'}: {error}", 2)
     try:
-        problems, wave_count = lint_plan(plan, config.providers)
+        problems, wave_count = lint_plan(
+            plan, config.providers, config.harness, config.models["verify"]
+        )
     except (OSError, UnicodeDecodeError) as error:
         return fail(f"cannot read plan files: {error}", 2)
     if problems:
