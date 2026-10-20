@@ -12,7 +12,9 @@ _TOKEN_RE = re.compile(r"([a-z0-9.-]+)(?:@([a-z]+))?")
 
 
 def provider_of(name: str) -> str | None:
-    """The provider of a model name, or None for any other name."""
+    """The provider of a model name (a bare provider token is its own), or None."""
+    if name in PROVIDERS:
+        return name
     if name in _CLAUDE_NAMES or name.startswith("claude-"):
         return "claude"
     if name.startswith("gpt-"):

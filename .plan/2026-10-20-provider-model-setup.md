@@ -69,9 +69,9 @@ sdist.
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/- | 1 | 1 | DONE | |
 | N02 | FORMAT contract for tokens, harness and docs topics | exec | N01 | opus/sonnet | 1 | 2 | DONE | |
-| N03 | bare provider tokens in plz run | exec | N02 | sonnet/sonnet | 0 | 0 | TODO | |
+| N03 | bare provider tokens in plz run | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
 | N04 | harness key and lint rule visual | exec | N03 | sonnet/sonnet | 0 | 0 | TODO | |
-| N05 | planner role and both skills | exec | N02 | opus/sonnet | 0 | 0 | TODO | |
+| N05 | planner role and both skills | exec | N02 | opus/sonnet | 1 | 0 | VERIFYING | |
 | N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 0 | 0 | TODO | |
 | N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 0 | 0 | TODO | |
 | N08 | PR, merge and tag v0.2.0 | exec | N06,N07 | sonnet/- | 0 | 0 | TODO | |
@@ -365,4 +365,24 @@ exec: DONE · 747 passed, 1 skipped
 - FORMAT.md §4/§6/§8/§9/§11/§14 state D1-D8: bare claude/codex tokens, model-choice scale, harness config key and lint rule visual, plz-new-plan detection, versions and upgrades, per-harness native table and Codex enablement
 - tree already held the full edit; checked each of C1-C9 against it (C1 grep passes, only the six sections differ, the Codex flag named exists in codex --help) and kept it unchanged
 check: PASS 2/2
+verify: PASS
+
+### N03 try 1 · 2026-10-20
+exec: DONE · 766 passed
+- provider_of returns a bare claude/codex token as its own provider, so split_token and validate accept it with that provider's efforts
+- build_argv omits -m / --model when name == cli; effort flags and all other argv unchanged
+
+### N05 try 1 · 2026-10-20
+exec: DONE · 766 passed, 1 skipped
+- planner role: D3 one-scale model guidance with codex@low/medium/high, no versioned Codex names, plus the harness rule ([visual] on a bare Claude alias in claude-code; [smoke] or [human] in codex)
+- plz-new-plan detects CLIs, logins and harness in its config step, asks providers and harness in the one round, writes or edits one config line; plz-run-plan Dispatch rule routes per harness: native only for Claude aliases in Claude Code, plz-run there, background shell jobs in Codex, plz-visual in Codex hits cannot dispatch
+- harness rule folded into the planner's models line to stay at 30 lines; run-plan kept at 80 lines
+
+### N03 try 1 · 2026-10-20
+check: PASS 3/3
+
+### N05 try 1 · 2026-10-20
+check: PASS 3/3
+
+### N03 try 1 · 2026-10-20
 verify: PASS

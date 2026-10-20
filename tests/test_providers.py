@@ -12,6 +12,8 @@ from planzilla.providers import PROVIDERS, check_token, efforts_of, provider_of,
         ("fable", "claude"),
         ("claude-opus-4-7", "claude"),
         ("gpt-6.1-sol", "codex"),
+        ("claude", "claude"),
+        ("codex", "codex"),
         ("gemini-3", None),
         ("big", None),
         ("-", None),
@@ -35,6 +37,10 @@ def test_provider_effort_levels() -> None:
         ("claude-opus-4-7@low", ("claude-opus-4-7", "low")),
         ("gpt-6-astra@xhigh", ("gpt-6-astra", "xhigh")),
         ("gpt-6-luna", ("gpt-6-luna", None)),
+        ("codex", ("codex", None)),
+        ("claude", ("claude", None)),
+        ("codex@xhigh", ("codex", "xhigh")),
+        ("claude@max", ("claude", "max")),
         ("gemini-3", ("gemini-3", None)),
         ("-", ("-", None)),
     ],
@@ -46,7 +52,18 @@ def test_split_token_into_name_and_effort(token: str, parts: tuple[str, str | No
 
 @pytest.mark.parametrize(
     "token",
-    ["sonnet@xhigh", "gpt-6-astra@huge", "gemini-3@high", "gpt-6-luna@", "Bad", "a b", "", "@high"],
+    [
+        "sonnet@xhigh",
+        "codex@huge",
+        "claude@xhigh",
+        "gpt-6-astra@huge",
+        "gemini-3@high",
+        "gpt-6-luna@",
+        "Bad",
+        "a b",
+        "",
+        "@high",
+    ],
 )
 def test_bad_effort_tokens_raise(token: str) -> None:
     with pytest.raises(ValueError):

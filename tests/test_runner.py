@@ -84,6 +84,53 @@ def test_codex_argv_with_effort_is_one_item():
     ]
 
 
+def test_bare_codex_argv_has_no_model_flag():
+    assert runner.build_argv("executor", "codex", "codex", None, "/repo", "/tmp/x/reply.txt") == [
+        "codex",
+        "exec",
+        *CODEX_TAIL,
+    ]
+
+
+def test_bare_codex_argv_with_effort_keeps_the_effort_flag():
+    argv = runner.build_argv("verifier", "codex", "codex", "high", "/repo", "/tmp/x/reply.txt")
+    assert argv == ["codex", "exec", "-c", 'model_reasoning_effort="high"', *CODEX_TAIL]
+
+
+@pytest.mark.parametrize(
+    ("role", "tools"),
+    [
+        ("planner", "Read,Grep,Glob,Write,Edit,Bash"),
+        ("executor", "Read,Grep,Glob,Edit,Write,Bash"),
+        ("verifier", "Read,Grep,Glob,Bash"),
+    ],
+)
+def test_bare_claude_argv_has_no_model_flag(role, tools):
+    argv = runner.build_argv(role, "claude", "claude", None, "/repo", None)
+    assert argv == [
+        "claude",
+        "-p",
+        *CLAUDE_TAIL,
+        "--tools",
+        tools,
+        "--allowedTools",
+        tools,
+        "--permission-mode",
+        "dontAsk",
+    ]
+
+
+def test_bare_claude_argv_with_effort_keeps_the_effort_flag():
+    argv = runner.build_argv("planner", "claude", "claude", "low", "/repo", None)
+    assert argv[:4] == ["claude", "-p", "--effort", "low"]
+    assert "--model" not in argv
+
+
+def test_validate_accepts_bare_tokens():
+    assert runner.validate("verifier", "codex@low", "x") == ("codex", "codex", "low")
+    assert runner.validate("verifier", "claude", "x") == ("claude", "claude", None)
+
+
 @pytest.mark.parametrize(
     ("role", "tools"),
     [

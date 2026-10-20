@@ -98,6 +98,22 @@ def test_codex_success_prints_only_the_last_line_of_the_output_file(capsys, fake
     assert not kwargs.get("shell") and "env" not in kwargs and "timeout" not in kwargs
 
 
+def test_bare_codex_runs_without_a_model_flag(capsys, fake):
+    code, out, err = call(capsys, "verifier", "codex@low", LINE)
+    assert (code, out, err) == (0, "PASS N01\n", "")
+    argv = fake.calls[1][0]
+    assert argv[:4] == ["codex", "exec", "-c", 'model_reasoning_effort="low"']
+    assert "-m" not in argv
+
+
+def test_bare_claude_runs_without_a_model_flag(capsys, fake):
+    code, out, err = call(capsys, "verifier", "claude", LINE)
+    assert (code, out, err) == (0, "PASS N01\n", "")
+    argv = fake.calls[1][0]
+    assert argv[:2] == ["claude", "-p"]
+    assert "--model" not in argv
+
+
 def test_codex_output_file_lives_outside_the_repo_and_is_removed(capsys, fake):
     call(capsys, "executor", "gpt-6-luna", LINE)
     assert fake.out_dir is not None
