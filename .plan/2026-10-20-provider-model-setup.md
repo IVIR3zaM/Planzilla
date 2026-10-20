@@ -74,7 +74,7 @@ sdist.
 | N05 | planner role and both skills | exec | N02 | opus/sonnet | 1 | 0 | DONE | |
 | N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 1 | 0 | DONE | |
 | N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 1 | 0 | DONE | |
-| N08 | PR, merge and tag v0.2.0 | exec | N06,N07 | sonnet/- | 0 | 0 | TODO | |
+| N08 | tag v0.2.0 and release | exec | N06,N07 | sonnet/- | 1 | 1 | DONE | |
 | N09 | plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
 
 ## N01 preflight
@@ -257,23 +257,23 @@ Done when:
 - C4 [cmd] `grep -qx 'providers: claude, codex' .plan/config.md && grep -qx 'harness: claude-code' .plan/config.md && test "$(git diff HEAD --numstat -- .plan/config.md | cut -f1,2)" = "$(printf '2\t0')" && .planzilla/plz lint provider-model-setup | grep -q '^lint ok'`
 - C5 [cmd] `uv run pytest -q`
 
-## N08 PR, merge and tag v0.2.0
-Do: Cut the release (D12, pre-authorized). Stay on branch feat/codex-model-routing throughout.
-1. `git fetch origin`; if HEAD is ahead of origin/feat/codex-model-routing, `git push origin HEAD`.
-2. Unless an open PR from feat/codex-model-routing into main exists, `gh pr create --base main --head
-   feat/codex-model-routing` with title `Planzilla v0.2.0: provider model setup` and a short body naming what
-   the codex-model-routing and provider-model-setup plans added.
-3. Wait up to 20 minutes, in Bash calls of at most 5 minutes each, until every check on the PR head completes.
-   All success or skipped: `gh pr merge <n> --merge` (no branch deletion, D13). Anything else: reply BLOCKED
-   with the failing check.
-4. `git fetch origin main --tags`; take the PR's merge commit sha; if v0.2.0 is absent, `git tag v0.2.0 <sha>`
-   (lightweight) and `git push origin v0.2.0`; if it exists at that sha, push it as is; anywhere else, BLOCKED.
-5. Wait, in calls of at most 5 minutes, until the Release run for v0.2.0 completes; any job not success: BLOCKED
-   with the failing job and its last error line.
-Never force-push, move or delete a tag or branch, check out main, edit files, or touch the tap, secrets or the
-GitHub release by hand: the tag's Release run does those.
-Context: D12, D13, D16. The tag must point at main's merge commit; release.yml:33-40 fails unless the tag equals
-`v` + `__version__` (0.2.0 since N07).
+## N08 tag v0.2.0 and release
+Do: Tag the merged release and let its Release run publish it (D12, pre-authorized). Stay on branch
+feat/codex-model-routing throughout. PR #3 (feat/codex-model-routing into main) is merged; its merge commit is
+478d1145a32847c2def9a44e6d296dc5bdcc14b9, the tip of origin/main.
+1. `git fetch origin main --tags`; confirm `git rev-parse origin/main` and the PR's `merge_commit_sha` (C1's API
+   call) both equal 478d1145a32847c2def9a44e6d296dc5bdcc14b9; any mismatch: BLOCKED with both shas.
+2. `git ls-remote origin refs/tags/v0.2.0`: absent, `git tag v0.2.0 478d1145a32847c2def9a44e6d296dc5bdcc14b9`
+   (lightweight, like v0.1.0) then `git push origin v0.2.0`; present at that sha, nothing to push; anywhere
+   else, BLOCKED. A local v0.2.0 at another sha: BLOCKED, never delete or move it.
+3. Wait, in Bash calls of at most 5 minutes each and up to 20 minutes in all, until the Release run for v0.2.0
+   completes; any job not success: BLOCKED with the failing job and its last error line.
+A command the permission system denies: reply BLOCKED naming it; never retry it another way.
+Never force-push, move or delete a tag or branch, check out main, edit files, merge anything, or touch the tap,
+secrets or the GitHub release by hand: the tag's Release run does those.
+Context: D12 the release steps, pre-authorized; D16 done means the Release run's build, brew and publish jobs
+are all success. release.yml:33-40 fails unless the tag equals `v` + `__version__`; src/planzilla/__init__.py:3
+is 0.2.0.
 Write: -
 Test first: -
 Done when:
@@ -413,3 +413,20 @@ check: PASS 5/5
 ### N06 try 1 · 2026-10-20
 check: PASS 2/2
 verify: PASS
+
+### N08 try 1 · 2026-10-20
+exec: BLOCKED · PR #3 created, all checks pass, but permission system denied gh pr merge (merge without review)
+
+### N08 replan 1 · 2026-10-20
+human: PR 3 merged by the user
+- merge commit 478d1145a32847c2def9a44e6d296dc5bdcc14b9 on main; remaining: tag v0.2.0 on it, push the tag, wait for the Release run
+plan: REPLANNED
+- cause: gh pr merge was denied by the permission system; the user merged PR 3 by hand, merge commit 478d1145 is origin/main
+- new brief drops the push, PR and merge steps and keeps only: confirm the merge sha, tag v0.2.0 on it, push the tag, wait for the Release run
+- a permission-denied command now means BLOCKED naming it, never a workaround; title is now tag v0.2.0 and release
+
+### N08 try 1 · 2026-10-20
+exec: DONE · 785 passed
+- Tagged v0.2.0 (lightweight) at 478d114 and pushed; origin/main and PR merge sha matched
+- Release run 39407994781: build, brew, publish all success
+check: PASS 5/5
