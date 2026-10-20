@@ -158,3 +158,129 @@ def test_a_plan_is_found_by_slug_fragment(run):
 def test_items_overlap(a, b, expected):
     assert items_overlap(a, b) is expected
     assert items_overlap(b, a) is expected
+
+
+# --- providers (D4) ------------------------------------------------------------
+
+
+def _line(node: str, token: str, provider: str, row: int) -> str:
+    return (
+        f"{SM}:{row}: providers: {node} model {token} needs config providers to list {provider}\n"
+    )
+
+
+CODEX_LINES = _line("N01", "gpt-6.1-sol@high", "codex", 16) + _line(
+    "N02", "gpt-6-astra", "codex", 17
+)
+CLAUDE_LINES = _line("N01", "opus", "claude", 16) + _line("N02", "sonnet", "claude", 17)
+
+
+def _providers_repo(tmp_path: Path, monkeypatch, config: str | None) -> Path:
+    root = tmp_path / "providers"
+    shutil.copytree(FIXTURES / "providers", root)
+    if config is not None:
+        (root / ".plan" / "config.md").write_text(config)
+    monkeypatch.chdir(root)
+    return root
+
+
+def test_providers_listing_both_lints_ok(tmp_path, monkeypatch, capsys):
+    _providers_repo(tmp_path, monkeypatch, "providers: claude, codex\n")
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 3 nodes, 1 waves\n"
+
+
+@pytest.mark.parametrize("config", [None, "providers: claude\n"])
+def test_providers_without_codex_flags_the_codex_tokens(tmp_path, monkeypatch, capsys, config):
+    _providers_repo(tmp_path, monkeypatch, config)
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == CODEX_LINES
+
+
+def test_providers_without_claude_flags_the_claude_tokens(tmp_path, monkeypatch, capsys):
+    _providers_repo(tmp_path, monkeypatch, "providers: codex\n")
+    assert cli.main(["lint", SM]) == 1
+    out = capsys.readouterr().out
+    assert out == CLAUDE_LINES
+    assert "gemini-3" not in out
+
+
+def test_providers_reads_the_config_of_the_plans_repo_not_the_cwd(tmp_path, monkeypatch, capsys):
+    root = _providers_repo(tmp_path, monkeypatch, "providers: claude, codex\n")
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / ".plan").mkdir(parents=True)
+    (elsewhere / ".plan" / "config.md").write_text("providers: claude\n")
+    monkeypatch.chdir(elsewhere)
+    assert cli.main(["lint", str(root / SM)]) == 0
+
+
+def test_a_broken_config_is_a_parse_problem_on_the_config_line(tmp_path, monkeypatch, capsys):
+    _providers_repo(tmp_path, monkeypatch, "commit: none\nnonsense\n")
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == (
+        ".plan/config.md:2: parse: expected 'key: value', got 'nonsense'\n"
+    )
+
+
+# --- visual (D6) ---------------------------------------------------------------
+
+BOTH = "providers: claude, codex\n"
+
+
+def _row(node: str, token: str, harness: str, row: int) -> str:
+    message = f"{node} verify {token} is not a model harness {harness} runs natively"
+    return f"{SM}:{row}: visual: {message}\n"
+
+
+def _criterion(node: str, harness: str, line: int) -> str:
+    return (
+        f"{SM}:{line}: visual: {node} [visual] needs a visual agent; harness {harness} has none\n"
+    )
+
+
+def _visual_repo(tmp_path: Path, monkeypatch, name: str, config: str | None) -> None:
+    root = tmp_path / name
+    shutil.copytree(FIXTURES / name, root)
+    if config is not None:
+        (root / ".plan" / "config.md").write_text(config)
+    monkeypatch.chdir(root)
+
+
+def test_visual_on_a_native_verify_model_lints_ok(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "visual-ok", BOTH)
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 2 nodes, 1 waves\n"
+
+
+def test_visual_flags_a_verify_model_the_harness_does_not_run_natively(
+    tmp_path, monkeypatch, capsys
+):
+    _visual_repo(tmp_path, monkeypatch, "visual", BOTH + "models: verify=gpt-5.5\n")
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == (
+        _row("N02", "sonnet@high", "claude-code", 17)
+        + _row("N03", "codex@high", "claude-code", 18)
+        + _row("N04", "gpt-5.5", "claude-code", 19)
+    )
+
+
+def test_visual_with_a_dash_verify_uses_the_config_models_verify(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "visual", None)
+    assert cli.main(["lint", SM]) == 1
+    out = capsys.readouterr().out
+    assert "N04" not in out  # default verify is sonnet, native
+
+
+def test_visual_under_codex_flags_each_criterion_line(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "visual", BOTH + "harness: codex\n")
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == "".join(
+        _criterion(node, "codex", line)
+        for node, line in (("N01", 26), ("N02", 33), ("N03", 40), ("N04", 47))
+    )
+
+
+def test_visual_never_fires_without_a_visual_criterion(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "providers", BOTH + "harness: codex\n")
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 3 nodes, 1 waves\n"

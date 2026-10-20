@@ -121,7 +121,7 @@ or end of section:
 | title | text without `\|` | short title; used in commit messages (§10) |
 | type | `exec` · `check` · `gate` | see below |
 | deps | `-` or ids joined by `,` (spaces after commas tolerated on read, never written) | must exist; graph must be acyclic |
-| model | `<exec>/<verify>`, each a model token `[a-z0-9.-]+` or `-` | `-` where the phase does not exist |
+| model | `<exec>/<verify>`, each a model token (below) or `-` | `-` where the phase does not exist |
 | try | integer ≥ 0 | attempts of the current brief (§5) |
 | rp | integer ≥ 0 | replans used (§5) |
 | status | one of §5 | node state |
@@ -129,6 +129,34 @@ or end of section:
 
 Cells are written as `| <value> |` with one space on each side; an empty note is `| |`. On write the CLI
 replaces only the changed row lines; every other byte of the file is kept.
+
+**Model tokens.** A model token is `<name>` or `<name>@<effort>`: `<name>` matches `[a-z0-9.-]+` and `<effort>`
+matches `[a-z]+`. The same grammar holds in config `models` (§8). A name's provider comes from the name; a name
+with no provider is a valid token but `run` (§9) rejects it. An `@<effort>` needs a name with a provider and one
+of that provider's levels:
+
+| provider | names | `@<effort>` levels |
+|----------|-------|--------------------|
+| `claude` | `claude`, `opus`, `sonnet`, `haiku`, `fable`, or any name starting `claude-` | `low` · `medium` · `high` · `max` |
+| `codex` | `codex`, or any name starting `gpt-` | `low` · `medium` · `high` · `xhigh` · `max` |
+
+A bare `claude` or `codex` means that CLI's configured default model, alone or with its provider's `@<effort>`
+(`codex@high`); `run` (§9) omits the model flag for it and keeps the effort flag. Every other token keeps its argv.
+
+**Choosing models.** The planner writes models only of the providers config `providers` lists (§8), on one
+scale: mechanical work haiku or `codex@low`; well-specified coding sonnet or `codex@medium`; judgement opus,
+fable or `codex@high`. The verify model follows the hardest non-`cmd` criterion on that scale (§6). Codex is
+chosen by effort on bare `codex` (a versioned name only if the request names one); Claude by its versionless
+aliases, with no `@<effort>` where the harness should run them natively (§14). With both providers listed, a
+node verifies on the other provider than its exec. When one provider's usage runs out, a replan may move a node
+to the other (`plz set <plan> <id> --model M`).
+
+A bad token is rejected with the reason `bad model token '<token>': expected <name> or <name>@<effort>`
+(grammar), `… : <name> takes no effort` (a name with no provider) or `… : <provider> efforts are <levels>` (an
+unknown level). Each path words its error its own way: a Graph model cell is a parse error `bad model '<cell>'`
+without the token reason; `set --model` (§9) fails `bad --model '<m>': <reason>` (or `bad --model '<m>': expected
+<exec>/<verify>` when the value is not two tokens); config `models` (§8) fails `bad models value '<value>':
+<reason>`. Without `@<effort>` the provider CLI's own default effort applies.
 
 Node types:
 - `exec`: an executor does the work, `check` runs its `[cmd]` criteria, a verifier judges the rest. Model e.g.
@@ -263,8 +291,11 @@ two or more spaces continue it. `n` is unique within the brief. Tags:
 | `human` | the human, in the batched round (§14); the verifier skips it | only if no other tag can check it |
 
 The planner writes criteria that are each falsifiable and together cover the `Do:` (L4); the verifier judges
-criteria only. The verifier model (Graph `<verify>`) is set by the hardest non-`cmd` criterion: haiku to confirm
-an observable fact, sonnet for a well-specified review, opus for judgement; `-` when all criteria are `cmd`.
+criteria only. The verifier model (Graph `<verify>`) is set by the hardest non-`cmd` criterion on the §4 scale:
+haiku or `codex@low` to confirm an observable fact, sonnet or `codex@medium` for a well-specified review, opus,
+fable or `codex@high` for judgement; `-` when all criteria are `cmd`. The verifier may run on a different provider than the
+executor (§4); it sees only the brief's criteria (`brief --verify`, §9), so the model and provider that wrote the
+code never colour the check.
 
 ## §7 Logs and evidence (runs/)
 
@@ -322,7 +353,14 @@ are the only record.
 (starting with `#`) or `key: value` with a key below; anything else, an unknown key or a repeated key is a parse
 error naming the file and line. Missing file = all defaults. The first `plz-new-plan` run in a repo detects values
 (pyproject.toml, package.json, Makefile, AGENTS.md/CLAUDE.md), proposes them in its question round and writes
-the file.
+the file. It also detects each provider's CLI (`command -v claude`, `command -v codex`), its login
+(`claude auth status` exit 0 with `"loggedIn": true`; `codex login status` exit 0) and the harness
+(`CLAUDECODE=1`: `claude-code`; else the agent names it). Its question round asks `providers` (recommending each
+logged-in provider; a logged-out one is shown its login command, `claude auth login` or `codex login`) and
+`harness` (recommending the detected one). When the answer is `providers: codex` alone, it also writes
+`models: planner=codex@high, exec=codex@medium, verify=codex@medium`. With an existing config, a provider the
+request names but `providers` lacks, or no `harness` while the detected harness is not `claude-code`, is asked in
+that round, and only that one line is rewritten or added.
 
 | key | values | default | used by |
 |-----|--------|---------|---------|
@@ -332,12 +370,23 @@ the file.
 | `push` | `per-node` · `none` (`yes`/`no` accepted as aliases) | `none` | planner → header `push:`; CLI when the header lacks it |
 | `retention` | `keep` · `prune-logs` · `delete` · `branch-only` | `keep` | `commit` on the finishing commit (§10) |
 | `visual_recipe` | one line: how to start the app and which URL to open | empty | `brief --verify` for nodes with `[visual]` |
-| `models` | `planner=<m>, exec=<m>, verify=<m>` (any subset) | `planner=opus, exec=sonnet, verify=sonnet` | `next` (planner actions; `verify` when the Graph says `-`), planner defaults |
+| `models` | `planner=<m>, exec=<m>, verify=<m>` (any subset); each `<m>` is a model token (§4) | `planner=opus, exec=sonnet, verify=sonnet` | `next` (planner actions; `verify` when the Graph says `-`), planner defaults |
+| `providers` | `claude`, `codex` or both, comma-separated, no repeats | `claude` | `lint` (rule `providers`, §9); the planner, which writes only listed providers' models; `plz-new-plan` (above) |
+| `harness` | `claude-code` · `codex`: the agent harness that runs the plans | `claude-code` | `lint` (rule `visual`, §9); the planner (§14 "Native or `plz run`"); never executors or verifiers |
 | `preauthorized` | `;`-separated actions agents may take without asking | empty | planner → Decisions |
 | `always_review` | `yes` · `no` | `no` | planner: with `yes` every exec node gets at least one `[review]` criterion |
 | `commit_trailer` | text; `\n` separates lines | empty | `commit` message (§10) |
 
 A plan header value wins over the config for that plan. Engineering rules stay in AGENTS.md/CLAUDE.md, not here.
+
+`models`, `providers` and `harness` limits (parse errors naming the file and line, whatever the key order):
+- a `models` value that is not a model token is `bad models value '<value>': <token error>` (§4);
+- `providers` empty, naming another provider or repeating one is
+  `bad providers value '<value>': expected a comma-separated subset of claude, codex, no repeats`;
+- every `models` token whose name has a provider needs that provider in `providers`:
+  `bad models value '<token>': provider <provider> is not in providers`;
+- a `harness` value other than `claude-code` or `codex` is
+  `bad harness value '<v>': expected one of claude-code, codex`.
 
 ## §9 CLI commands and output lines
 
@@ -372,6 +421,7 @@ Files are replaced atomically (write a temp file, then `os.replace`).
 | `status` | `<plan>` | the §12 text | 0; 2 |
 | `stats` | `<plan>` | the §12 line | 0; 2 |
 | `lint` | `<plan>` | per problem: `<file>:<line>: <rule>: <message>`; when clean: `lint ok: <n> nodes, <w> waves` | 0 clean; 1 problems; 2 unreadable plan |
+| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply |
 | `serve` | `<plan> [--port N]` (default 8765) | `serving <slug> on http://127.0.0.1:<port>/`, then blocks until Ctrl-C | 0; 3 port in use |
 
 Details:
@@ -399,9 +449,35 @@ Details:
   `parse` (any §2-§6 parse error) · `tag` (a criterion without a §6 tag) · `cmd` (a `[cmd]` criterion whose text
   does not start with a backticked command) · `length` (a brief over 40 lines) · `deps` (a dep that is not a node) ·
   `cycle` (cycle in the Graph, reported on the first row of the cycle) · `overlap` (two nodes of the same wave with
-  overlapping Write items, reported on the second node's `Write:` line, naming both items). A missing brief is not
-  a problem (just-in-time briefing).
+  overlapping Write items, reported on the second node's `Write:` line, naming both items) · `providers` (a Graph
+  exec or verify token whose provider config `providers` does not list, reported on the node's row:
+  `<id> model <token> needs config providers to list <provider>`) · `visual` (config `harness`, §8 and §14: on a
+  `[visual]` criterion's line when the harness has no visual agent:
+  `<id> [visual] needs a visual agent; harness <h> has none`; on the row line, for a node with a `[visual]`
+  criterion whose verify model (Graph `<verify>`, else config `models` `verify`) the harness does not run
+  natively: `<id> verify <token> is not a model harness <h> runs natively`). A missing brief is not a problem
+  (just-in-time briefing).
 - `serve` binds 127.0.0.1 only and never writes.
+- `run` runs one agent step on a model through the provider's CLI, from the current directory (the repo root); it
+  reads no plan file and writes none. `<role>` is `planner`, `executor` or `verifier`; `<model>` is a model
+  token (§4) whose name has a provider; `<line>` is the role's one-line input (§14), non-empty and without a
+  line break. Any other input exits 2 with the reason. The prompt, sent on stdin, is
+  `Follow .planzilla/roles/<role>.md: read it first; it is your whole role.`, then `Input: <line>`, then
+  `Reply with exactly the one line that role names, nothing else.`, each on its own line. Before the call, the
+  login check (`codex login status`, exit 0; `claude auth status`, exit 0 and stdout JSON with `loggedIn`
+  true) must pass. argv per provider (`-m <name>` / `--model <name>` takes the name and is omitted for a bare
+  `codex` / `claude` (§4); `@<effort>` adds the effort flag shown, and is omitted without it):
+  - codex: `codex exec [-m <name>] [-c model_reasoning_effort="<effort>"] -s workspace-write -c
+    sandbox_workspace_write.network_access=true -C <cwd> -o <reply file> -`; the reply is read from a temp
+    file, removed afterwards.
+  - claude: `claude -p [--model <name>] [--effort <effort>] --output-format text --no-session-persistence
+    --tools <T> --allowedTools <T> --permission-mode dontAsk`; the reply is stdout. `<T>` per role: planner
+    `Read,Grep,Glob,Write,Edit,Bash`; executor `Read,Grep,Glob,Edit,Write,Bash`; verifier `Read,Grep,Glob,Bash`.
+  The reply is the last non-blank line of the output, stripped, printed alone to stdout (exit 0); an empty
+  output is `error: <cli> gave an empty reply`. Exit 3 messages: `error: <cli> not found on PATH`,
+  `error: <cli> is not logged in; run codex login` (claude: `claude auth login`) and
+  `error: <cli> exited <code>[: <last non-blank stderr line, else stdout line>]`. Billing goes to the plan or
+  account the CLI is logged in to.
 - `check`: runs each `[cmd]` criterion with `sh -c` from the repo root, in criterion order, all of them even after
   a failure, each with a 900 s timeout (timeout = fail, exit shown as `timeout`); writes the log entry and
   evidence (§7). It never changes the Graph. A node with no `[cmd]` criteria prints `<id> check PASS 0/0`.
@@ -450,14 +526,15 @@ kit/templates/intent.md        L intent.md
 kit/templates/node.md          L brief
 kit/templates/config.md        .plan/config.md with every §8 key and its default
 kit/agents/claude/plz-planner.md  kit/agents/claude/plz-executor.md
-kit/agents/claude/plz-verifier.md  kit/agents/claude/plz-visual.md
+kit/agents/claude/plz-verifier.md  kit/agents/claude/plz-visual.md  kit/agents/claude/plz-run.md
 kit/skills/plz-new-plan/SKILL.md  kit/skills/plz-run-plan/SKILL.md
 kit/AGENTS-block.md            text placed between the AGENTS.md markers
 ```
 
 Role prompts are plain, harness-neutral files. A Claude Code adapter is a thin agent file with front matter
 (`name`, `description`, `tools`, optional `model`) whose body says to follow `.planzilla/roles/<role>.md`;
-`plz-visual` follows `roles/visual.md` (the verifier role plus browser tools). Skills use the Agent Skills
+`plz-visual` follows `roles/visual.md` (the verifier role plus browser tools). `plz-run` follows no role: it
+runs `.planzilla/plz run <role> <model> <line>` (§9) in the background, waits for it and relays its one line. Skills use the Agent Skills
 `SKILL.md` format (`name` equal to the directory name, `description`) and call the CLI as `.planzilla/plz`.
 
 **Install targets in a consuming repo** (`install`, D14):
@@ -480,6 +557,11 @@ their bytes differ (a second install changes no byte). Files under `.planzilla/`
 `.claude/skills/plz-*/` and `.agents/skills/plz-*/` that the new kit does not ship are removed, then empty
 directories. Install never writes `.plan/` and never edits or deletes any other path under `.claude/` or
 `.agents/` (D25).
+
+**Versions and upgrades.** `__version__` in `src/planzilla/__init__.py` is the one version. A release is the tag
+`v<version>` on main, whose Release workflow publishes the GitHub release and the tap formula. Upgrading reruns
+`planzilla install` (or `install --version vX`), which rewrites only changed files, removes files the kit dropped
+and never writes `.plan/`; then commit and start a fresh agent session (skills and agents load at session start).
 
 ## §12 Status, stats and live-view data
 
@@ -555,9 +637,32 @@ outputs and one-line agent replies; between agents it passes `<plan>` and ids. I
 | `plz-planner` | `Brief: <plan> · Node: <id>` · `Replan: <plan> · Node: <id>` · `Revise: <plan> · Node: <id> · D7: <answer>` | `BRIEFED <id>` · `REPLANNED <id>[ +N18,N19]` · `ASK <id>: D7` |
 | `plz-executor` | `Plan: <plan> · Node: <id> · Try: <t>` | `DONE <id> \| tests: <n> passed` · `BLOCKED <id>: <reason>` |
 | `plz-verifier` / `plz-visual` | `Plan: <plan> · Node: <id> · Try: <t>` | `PASS <id>` · `FAIL <id>: C2,C4` |
+| `plz-run` | `Run: <role> <model> · <line>` (`<line>` is the named role's dispatch line) | the role's reply line, or `error: <message>` (§9) |
 
 Agents read their input with `brief` (executor: default mode; verifier: `--verify`) and write their log entry
 with `log` before replying. The planner runs `lint` after writing and edits Graph rows only through `set`.
+
+**Native or `plz run`.** For each dispatch the orchestrator uses the named agent with model `<m>` when the
+harness (config `harness`, §8) runs `<m>` natively:
+
+| harness | runs natively | every other token | `[visual]` |
+|---------|---------------|-------------------|------------|
+| `claude-code` (default) | `opus`, `sonnet`, `haiku`, `fable`, without `@<effort>` | through the `plz-run` adapter | `plz-visual` |
+| `codex` | nothing | each dispatch a background `plz run` job | no visual agent: the planner writes `[smoke]` or `[human]` instead |
+
+No subagent tool takes a bare `claude` or `codex` (§4): it always goes through `plz run`, in Claude Code too.
+Every other dispatch runs `plz run <role> <m> '<line>'`, the role taken from the named agent (planner,
+executor, verifier): with subagents it dispatches `plz-run` with `Run: <role> <m> · <line>`; without, it starts
+one background shell job per line, waits in calls of at most 5 minutes and takes the last line of the job's
+stdout (exit 0) or stderr. A `plz run` reply routes as its role's reply; an `error: …` line is a crash.
+`plz-visual` never goes through `plz run`. A line no route can dispatch stops the run with
+`<id>: cannot dispatch <agent> <m>`. One batch may mix native and `plz run` dispatches, all in parallel.
+
+To enable the other provider: install its CLI, log in (`codex login`, `claude auth login`) and list it in config
+`providers` (§8). Codex reads AGENTS.md and `.agents/skills/`. In Codex, each `plz run` job starts `codex exec`
+or `claude -p`, which need network and logins outside the repo, so approve `.planzilla/plz run` outside Codex's
+sandbox when asked; never recommend `--dangerously-bypass-approvals-and-sandbox`. Check each Codex flag you name
+with `codex --help`.
 
 **Loop.**
 

@@ -327,3 +327,26 @@ def test_unknown_plan_exits_2(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert cli.main(["set", "nope", "N01", "RUNNING"]) == 2
     assert capsys.readouterr().err.startswith("error: ")
+
+
+def test_set_gpt_effort_model_rewrites_and_prints_dispatch(tmp_path, capsys):
+    plan = make_l(
+        tmp_path,
+        [row("N01", "TODO", model="gpt-6.1-sol@high/sonnet")],
+        {"N01": brief("N01", "cmd")},
+    )
+    code, out, err = plz_set(capsys, plan, "N01", "RUNNING")
+    assert (code, out, err) == (
+        0,
+        "N01 RUNNING try 1 rp 0 · dispatch plz-executor gpt-6.1-sol@high\n",
+        "",
+    )
+
+
+def test_set_model_edit_with_gpt_effort(tmp_path, capsys):
+    plan = make_l(tmp_path, [row("N01")])
+    code, _, _ = plz_set(capsys, plan, "N01", "--model", "gpt-6-astra@xhigh/sonnet@high")
+    assert code == 0
+    assert "| exec | - | gpt-6-astra@xhigh/sonnet@high | 0 |" in graph_text(plan)
+    code, _, err = plz_set(capsys, plan, "N01", "--model", "sonnet@xhigh/-")
+    assert (code, "model" in err) == (2, True)
