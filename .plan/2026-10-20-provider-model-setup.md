@@ -68,7 +68,7 @@ sdist.
 | id | title | type | deps | model | try | rp | status | note |
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/- | 1 | 1 | DONE | |
-| N02 | FORMAT contract for tokens, harness and docs topics | exec | N01 | opus/sonnet | 0 | 0 | TODO | |
+| N02 | FORMAT contract for tokens, harness and docs topics | exec | N01 | opus/sonnet | 1 | 2 | DONE | |
 | N03 | bare provider tokens in plz run | exec | N02 | sonnet/sonnet | 0 | 0 | TODO | |
 | N04 | harness key and lint rule visual | exec | N03 | sonnet/sonnet | 0 | 0 | TODO | |
 | N05 | planner role and both skills | exec | N02 | opus/sonnet | 0 | 0 | TODO | |
@@ -94,38 +94,45 @@ Done when:
 - C8 [cmd] `uv run python -c "import pathlib, planzilla; assert pathlib.Path(planzilla.__file__).resolve().parent == pathlib.Path('src/planzilla').resolve()"`
 
 ## N02 FORMAT contract for tokens, harness and docs topics
-Do: Update docs/FORMAT.md first (D9), so the code, kit and README nodes follow it. Change exactly:
-- §4 Model tokens: the table gains `claude` and `codex` as names; a sentence says a bare provider name means that
-  CLI's configured default model and `run` passes no model flag for it (D1); the model-choice rules for the
-  planner (D3) sit after the table, harness-neutral.
-- §6: the verifier-model sentence uses D3's scale for both providers.
-- §8: a `harness` row (values, default, used by) and its error in the limits list (D4); the opening paragraph
-  says how plz-new-plan detects providers and harness and when it updates `providers` or adds `harness` in an
-  existing config (D8); the `providers` row names plz-new-plan too.
-- §9: the `run` bullet says `-m <name>` / `--model <name>` are omitted for `codex` / `claude`; the lint rules
-  list gains `visual` with both D6 messages and where each is reported.
-- §11: a short "Versions and upgrades" paragraph: `__version__` in src/planzilla/__init__.py is the one version;
-  a release is tag `v<version>` on main, whose Release workflow publishes the GitHub release and the tap formula;
-  a repo upgrades by running `planzilla install` again (or `--version vX`), which rewrites only changed files,
-  removes files the kit no longer ships and never writes `.plan/`, then commits the result and starts a fresh
-  agent session, since harnesses load skills and agents at session start.
-- §14: the native-or-`plz run` rule as a per-harness table (D5): claude-code native opus, sonnet, haiku, fable
-  without effort, other tokens through the `plz-run` adapter, `[visual]` by plz-visual; codex nothing native,
-  every dispatch a background `plz run` job, no visual agent (D6); bare tokens always `plz run` (D2). Then how to
-  enable the other provider: install its CLI, log in (`codex login`, `claude auth login`), list it in
-  `providers`; from Codex, approve `.planzilla/plz run` outside the sandbox when asked (D7).
-Context: today §4 docs/FORMAT.md:133-148, §6 :282-286, §8 :338-367, §9 lint :426-433 and run :435-454, §11
-:491-533, §14 :596-621. Decisions as above; keep every other rule byte-identical. Check each Codex flag you
-name with `codex --help`. tests/kit/test_preflight.py reads §1 and the §8 table.
-Read: `docs/FORMAT.md`, `src/planzilla/providers.py`, `src/planzilla/runner.py`, `src/planzilla/config.py`, `src/planzilla/commands/lint.py`, `.github/workflows/release.yml`
+Do: Write every FORMAT change before any code (D9). In docs/FORMAT.md change only §4 :133, §6 :282, §8 :338,
+  §9 :426, §11 :491 and §14 "Native or `plz run`" :610 so they state what C2-C8 say (the confirmed Decisions D1-D8
+  in full), each once, where each names; the rest of FORMAT stays byte-identical.
 Write: `docs/FORMAT.md`
-Test first: -
 Done when:
 - C1 [cmd] `f=docs/FORMAT.md; grep -q '^| .harness. |' $f && grep -q 'claude-code' $f && grep -q 'codex@medium' $f && grep -q 'harness <h> has none' $f && grep -q 'runs natively' $f && grep -q 'codex login status' $f && grep -q 'fresh' $f && ! grep -q 'gpt-6' $f`
-- C2 [review] FORMAT states every point of Do, each once and without contradiction: D1 meaning and argv, D2,
-  D3's scale and rules, D4 values, default and error, D5 table, D6 messages and lines, D7, D8, the §11 paragraph;
-  no rule outside these sections changed.
-- C3 [cmd] `uv run pytest -q`
+- C2 [review] §4: the token table's names gain bare `claude` and `codex`; after it, a bare `claude`/`codex` means
+  that CLI's configured default model, alone or with its provider's `@<effort>`; `run` omits the model flag for it
+  and keeps the effort flag; every other token keeps its argv.
+- C3 [review] §4, once, harness-neutral: models only of config `providers`; mechanical haiku or `codex@low`,
+  well-specified coding sonnet or `codex@medium`, judgement opus, fable or `codex@high`; verify model follows the
+  hardest non-`cmd` criterion; Codex by effort on bare `codex` (versioned name only if the request names one); Claude
+  by versionless aliases, no `@<effort>` where run natively; both providers: verify on the other one than exec; a
+  replan may move a node (`plz set <plan> <id> --model M`) when one provider's usage runs out. §6 uses that scale.
+- C4 [review] §8: a `harness` row, `claude-code` · `codex`, default `claude-code`, used by `lint` (rule `visual`)
+  and the planner, never executors or verifiers; limits gain `bad harness value '<v>': expected one of claude-code,
+  codex`; `providers` used-by adds plz-new-plan.
+- C5 [review] §8 opening: plz-new-plan detects each provider's CLI (`command -v`), login (`claude auth status` exit 0
+  with `"loggedIn": true`; `codex login status` exit 0), harness (`CLAUDECODE=1`: claude-code, else the agent says);
+  asks providers (recommends logged-in ones; a logged-out one gets its login command) and harness (recommends the
+  detected one); Codex alone adds `models: planner=codex@high, exec=codex@medium, verify=codex@medium`; existing
+  config: a named provider it lacks, or no `harness` when detected is not claude-code, is asked; only that line changes.
+- C6 [review] §9: `run` omits `-m <name>` / `--model <name>` for bare `codex` / `claude`, keeps the effort flag;
+  lint gains `visual`: criterion line `<id> [visual] needs a visual agent; harness <h> has none`; row line, for a
+  `[visual]` node whose verify model (Graph `<verify>`, else config `models` verify) the harness does not run
+  natively, `<id> verify <token> is not a model harness <h> runs natively`.
+- C7 [review] §11 "Versions and upgrades": `__version__` in src/planzilla/__init__.py is the one version; a release
+  is tag `v<version>` on main, whose Release workflow publishes the GitHub release and tap formula; upgrading reruns
+  `planzilla install` (or `--version vX`): rewrites only changed files, removes files the kit dropped, never writes
+  `.plan/`; then commit and start a fresh agent session (skills and agents load at session start).
+- C8 [review] §14 per-harness table: claude-code runs opus, sonnet, haiku, fable natively without `@<effort>`, others
+  via the `plz-run` adapter, `[visual]` by plz-visual; codex runs nothing natively (each dispatch a background `plz
+  run` job), no visual agent, so `[smoke]` or `[human]`; a bare `claude`/`codex` always goes through `plz run`, in
+  Claude Code too. Then: enable the other provider by installing its CLI, logging in (`codex login`, `claude auth
+  login`), listing it in `providers`; Codex reads AGENTS.md and `.agents/skills/`; its `plz run` jobs need network
+  and logins outside the repo, so approve `.planzilla/plz run` outside Codex's sandbox when asked; never recommend
+  `--dangerously-bypass-approvals-and-sandbox`; each Codex flag named exists in `codex --help`.
+- C9 [review] `git diff HEAD -- docs/FORMAT.md` touches only §4, §6, §8, §9, §11, §14; nothing contradicts the rest.
+- C10 [cmd] `uv run pytest -q`
 
 ## N03 bare provider tokens in plz run
 Do: Test first, make the bare tokens `claude` and `codex` work as FORMAT §4 and §9 now say (D1). Their provider
@@ -320,3 +327,42 @@ plan: BRIEFED
 check: FAIL C3
 - C3 exit 1:
 check: PASS 8/8
+
+### N02 try 1 · 2026-10-20
+exec: BLOCKED · brief cites D3, D4, D6, D8 by number but does not give their content (D3 model scale per provider, D4 harness values/default/error text, D6 two lint messages and report lines, D8 detection rules); the FORMAT contract would have to guess them
+
+### N02 replan 1 · 2026-10-20
+plan: REPLANNED
+- cause: the brief cited D3, D4, D6, D8 by number only, so the executor could not write their FORMAT text
+- change: Context now restates D1-D8 in full (model scale, harness values/default/error, both lint visual messages and report lines, plz-new-plan detection and config update rules)
+- change: Do keeps the same section list, compacted to fit 40 lines; C2 now checks D1-D8 and the 11 paragraph as restated
+
+### N02 try 1 · 2026-10-20
+exec: DONE · 747 passed, 1 skipped
+- docs/FORMAT.md: bare claude/codex tokens and model-choice scale (§4), verifier scale for both providers (§6), harness key, error and plz-new-plan detection (§8), run omits model flag and lint visual rule (§9), Versions and upgrades (§11), per-harness native table, enabling a provider and Codex sandbox notes (§14)
+- D3 rules stated once in §4 as Choosing models; §6 cites the §4 scale; argv shows -m/--model as optional brackets
+- D7 verified: --dangerously-bypass-approvals-and-sandbox exists in codex --help
+check: PASS 2/2
+verify: FAIL C2
+- C2 docs/FORMAT.md - D1-D8 and the §11 paragraph are referenced as 'above' but the brief does not state them, so the content cannot be compared to evidence - expected criterion to be self-contained
+
+### N02 try 2 · 2026-10-20
+exec: DONE · 747 passed, 1 skipped
+- docs/FORMAT.md: §4 bare claude/codex names, D1 and model-choice rules; §6 verifier scale; §8 harness row, error and D8 detection; §9 run argv and lint visual; §11 versions paragraph; §14 per-harness table, D2, enabling the other provider and D7
+- Try 1 finding concerned the brief lacking D1-D8; the brief now states them and the tree content matches each, so no further FORMAT edits were needed
+check: PASS 2/2
+verify: FAIL C2
+- C2 docs/FORMAT.md - criterion refers to D1-D8 and the §11 paragraph 'as above', but the verify brief does not contain them, so the diff cannot be checked against them - not evidenced
+
+### N02 replan 2 · 2026-10-20
+plan: REPLANNED
+- cause: the verifier sees only heading, Write and Done when (brief --verify); C2 said 'D1-D8 and the 11 paragraph as above', content that lived in Do and Context, so it failed twice as not evidenced
+- change: Done when now restates D1-D8 and the versions paragraph per section as self-contained review criteria C2-C8, plus C9 for diff scope and no contradiction; C1 and the pytest criterion (now C10) unchanged
+- change: Do points at C2-C8 and keeps the section list with line cites; Context dropped to fit 40 lines. The tree already holds the FORMAT edits, so the next try may need no edits
+
+### N02 try 1 · 2026-10-20
+exec: DONE · 747 passed, 1 skipped
+- FORMAT.md §4/§6/§8/§9/§11/§14 state D1-D8: bare claude/codex tokens, model-choice scale, harness config key and lint rule visual, plz-new-plan detection, versions and upgrades, per-harness native table and Codex enablement
+- tree already held the full edit; checked each of C1-C9 against it (C1 grep passes, only the six sections differ, the Codex flag named exists in codex --help) and kept it unchanged
+check: PASS 2/2
+verify: PASS
