@@ -44,7 +44,7 @@ and no home-directory configuration. From the root of your repo:
 
 ```sh
 planzilla install                  # install the version you are running
-planzilla install --version v0.1.0 # or install a released tag from GitHub
+planzilla install --version v0.2.0 # or install a released tag from GitHub
 planzilla install --target ../other-repo
 ```
 
@@ -64,9 +64,7 @@ AGENTS.md                      a short block between <!-- planzilla:begin --> an
 ```
 
 Commit all of it. Inside the repo the agents and skills call `.planzilla/plz`, so nothing else has to be
-installed. To upgrade, run `planzilla install` again (or with `--version vX`): it rewrites only files whose bytes
-differ and removes files the new kit no longer ships. It never writes `.plan/` and never touches other files
-under `.claude/` or `.agents/`; in `AGENTS.md` it replaces only the lines between the markers.
+installed. To move a repo to a newer version, see [Upgrading a repo](#upgrading-a-repo).
 
 ## Use it in Claude Code
 
@@ -83,9 +81,12 @@ After vendoring, open Claude Code in the repo:
 The agents live in `.claude/agents/` and the skills in `.claude/skills/` of the repo, so no `~/.claude`
 configuration is needed.
 
-When a node's model is one Claude Code cannot run natively (a `gpt-` model, or any model with an `@<effort>`),
-`/plz-run-plan` dispatches the `plz-run` agent, which runs `planzilla run` for that step and relays the one-line
-reply.
+Each dispatch has two routes (FORMAT §14 "Native or `plz run`"). A node whose model is `opus`, `sonnet`,
+`haiku` or `fable`, with no `@<effort>`, runs natively: `/plz-run-plan` dispatches the named agent with that
+model. Every other model (a `codex` or `gpt-` name, a bare `claude`, or anything with an `@<effort>`) goes through
+the `plz-run` agent, which runs `planzilla run <role> <model> <line>` in the background and relays its one-line
+reply. One batch may mix both routes, all in parallel. `[visual]` criteria are checked by `plz-visual`, which
+never goes through `plz run`.
 
 ## Use it in other harnesses
 
@@ -112,9 +113,30 @@ there with a symlink or copy; the skill files are the same bytes everywhere. Ask
 session per role and tell it to follow the role file, for example "follow `.planzilla/roles/executor.md` for
 plan `<slug>`, node `N03`". The same files and CLI work from there on.
 
-To run nodes, such a harness uses its own subagents where they can run the node's model; otherwise it runs
-`.planzilla/plz run <role> <model> <line>` as background jobs, one per node, and reads the last line of each
-job's output as the agent's reply (FORMAT §9 and §14).
+### Codex
+
+Codex runs nothing natively (FORMAT §14): every step of a plan, planner, executor and verifier alike, is a
+`.planzilla/plz run <role> <model> '<line>'` job, started as a background shell job, one per line. The
+orchestrator waits in calls of at most 5 minutes and reads the last line of the job's output as the agent's
+reply. `plz run` starts `codex exec` or `claude -p`, which need network and a login that live outside the repo,
+so when Codex asks, approve `.planzilla/plz run` outside its sandbox. Never use
+`--dangerously-bypass-approvals-and-sandbox`. Because Codex has no visual agent, a plan written for it uses
+`[smoke]` or `[human]` criteria where a Claude Code plan would use `[visual]`.
+
+Other harnesses with subagents use them where they can run the node's model; otherwise they use `plz run` jobs
+as above.
+
+## Using both providers
+
+Planzilla can run a plan on Claude, on Codex or on both. To enable the other provider (FORMAT §14):
+
+1. Install its CLI: `claude` (Claude Code) or `codex` (Codex CLI).
+2. Log in: `claude auth login` or `codex login`. Check with `claude auth status` or `codex login status`.
+3. List it in `.plan/config.md`: `providers: claude, codex` (see [Config](#config)).
+
+So from Claude Code you enable Codex by installing and logging in to `codex`; from Codex you enable Claude the
+same way with `claude`. Billing goes to the account each CLI is logged in to. In Codex, remember to approve
+`.planzilla/plz run` outside the sandbox (above).
 
 ## Tiers
 
@@ -136,7 +158,8 @@ directory on replan.
 ## Config
 
 `.plan/config.md` holds repo defaults, as `key: value` lines (FORMAT §8). `plz-new-plan` detects them on its
-first run and proposes them to you. A plan's own header wins over the config.
+first run and proposes them to you (see [What plz-new-plan detects and asks](#what-plz-new-plan-detects-and-asks)).
+A plan's own header wins over the config.
 
 | key | meaning | default |
 |-----|---------|---------|
@@ -148,26 +171,51 @@ first run and proposes them to you. A plan's own header wins over the config.
 | `visual_recipe` | one line: how to start the app and which URL to open | empty |
 | `models` | `planner=<m>, exec=<m>, verify=<m>` (any subset); each `<m>` is `<name>` or `<name>@<effort>` | `planner=opus, exec=sonnet, verify=sonnet` |
 | `providers` | `claude`, `codex` or both: the providers whose models the plans may use | `claude` |
+| `harness` | `claude-code` or `codex`: the agent harness that runs the plans | `claude-code` |
 | `preauthorized` | `;`-separated actions agents may take without asking | empty |
 | `always_review` | `yes` or `no`: every exec node gets at least one `[review]` criterion | `no` |
 | `commit_trailer` | text added to commit messages; `\n` separates lines | empty |
 
 ## Models and providers
 
-A node's model is a token, `<name>` or `<name>@<effort>`, for example `opus`, `sonnet@high` or `gpt-5.5@xhigh`
-(grammar and effort levels in FORMAT §4). Names starting `gpt-` run on Codex; `opus`, `sonnet`, `haiku`, `fable`
-and `claude-*` run on Claude.
+A node's model is a token, `<name>` or `<name>@<effort>` (grammar, error messages and effort levels in FORMAT
+§4). The name decides the provider:
 
-- List the providers you use in `.plan/config.md`: `providers: claude`, `providers: codex` or
-  `providers: claude, codex`. Every model in `models` and in a plan's Graph must belong to a listed provider;
-  `planzilla lint` reports the ones that do not.
-- Set models in `models`, for example `models: planner=opus, exec=gpt-5.5@high, verify=sonnet`, or per node in the
-  plan's Graph.
-- The executor and the verifier may sit on different providers: the cold verifier sees only the brief's
-  criteria, so a Codex-written change can be verified by Claude and the other way round.
+| provider | names | `@<effort>` levels |
+|----------|-------|--------------------|
+| `claude` | `claude`, `opus`, `sonnet`, `haiku`, `fable`, or any name starting `claude-` | `low` · `medium` · `high` · `max` |
+| `codex` | `codex`, or any name starting `gpt-` | `low` · `medium` · `high` · `xhigh` · `max` |
+
+- Aliases such as `opus` and `sonnet` are versionless names that follow the newest model of that family.
+- A bare `claude` or `codex` means that CLI's own default model; `codex@high` keeps that default and sets only the
+  effort. Explicit names such as `gpt-5.5` pin one model and are used only when you name one.
+- Without `@<effort>` the provider CLI's own default effort applies.
+- Set models in `models`, for example `models: planner=opus, exec=codex@medium, verify=sonnet`, or per node in
+  the plan's Graph (`<exec>/<verify>`, for example `codex@medium/sonnet`).
+- List the providers you use in `providers`. Every model in `models` and in a plan's Graph must belong to a listed
+  provider; `planzilla lint` reports the ones that do not. When `providers: codex` is the only provider,
+  `plz-new-plan` also writes `models: planner=codex@high, exec=codex@medium, verify=codex@medium`.
 - `planzilla run <role> <model> <line>` runs one agent step through the provider's CLI (`claude` or `codex`,
-  installed and logged in) and prints its one-line reply (FORMAT §9). Each call bills to the plan or account that
-  CLI is logged in to.
+  installed and logged in) and prints its one-line reply (FORMAT §9). Each call bills to the account that CLI is
+  logged in to.
+
+### How the planner picks models
+
+The planner writes models only of the providers you list, on one scale (FORMAT §4):
+
+| work | Claude | Codex |
+|------|--------|-------|
+| mechanical | `haiku` | `codex@low` |
+| well-specified coding | `sonnet` | `codex@medium` |
+| judgement | `opus` or `fable` | `codex@high` |
+
+- The verify model follows the hardest non-`cmd` criterion of the node (FORMAT §6), on the same scale.
+- Claude models are chosen by their versionless alias, with no `@<effort>` where the harness should run them
+  natively (see [Claude Code](#use-it-in-claude-code)). Codex is chosen by effort on bare `codex`.
+- With both providers listed, a node is verified on the other provider than the one that executed it, so the
+  model that wrote the code never grades it. The cold verifier sees only the brief's criteria.
+- When one provider's usage runs out, a replan may move a node to the other provider
+  (`planzilla set <plan> <id> --model M`).
 
 ## Verification tags
 
@@ -178,8 +226,31 @@ Every node ends in a list of criteria, each tagged by who checks it (FORMAT §6)
 | `[cmd]` | `planzilla check` runs the backticked command; exit 0 passes. No model involved |
 | `[review]` | a verifier reads the code, tests and files |
 | `[smoke]` | a verifier starts the app or calls an API and reports what it saw |
-| `[visual]` | `plz-visual`: the verifier role plus browser tools |
+| `[visual]` | `plz-visual`: the verifier role plus browser tools (Claude Code only, see below) |
 | `[human]` | you, in one batched round; used only when no other tag can check it |
+
+Visual verification depends on the `harness` key (FORMAT §8, §14). With `harness: claude-code` a `[visual]`
+criterion is checked by the `plz-visual` agent. With `harness: codex` there is no visual agent, so the planner
+writes `[smoke]` or `[human]` criteria instead. `planzilla lint` (rule `visual`) reports a `[visual]` criterion
+when the harness has no visual agent, and a `[visual]` node whose verify model the harness does not run natively. Set
+`visual_recipe` so the verifier knows how to start the app and which URL to open.
+
+## What plz-new-plan detects and asks
+
+On a repo's first run, `plz-new-plan` detects (FORMAT §8):
+
+- the verify commands and other defaults, from `pyproject.toml`, `package.json`, `Makefile`, `AGENTS.md` and
+  `CLAUDE.md`;
+- each provider's CLI (`command -v claude`, `command -v codex`) and whether it is logged in (`claude auth status`,
+  `codex login status`);
+- the harness it runs in: `claude-code` when `CLAUDECODE=1`, otherwise the name the agent gives (for example
+  `codex`).
+
+It then asks, in its one question round, `providers` (recommending each logged-in provider; for a logged-out one it
+shows the login command, `claude auth login` or `codex login`) and `harness` (recommending the detected one),
+together with the usual gaps and the tier. With an existing config, it asks again only when the request names a
+provider that `providers` lacks, or when `harness` is absent and the detected harness is not `claude-code`; it
+rewrites or adds only that one line.
 
 ## Resume
 
@@ -224,6 +295,37 @@ or plan error, 3 external failure (git, network, lock). Details in FORMAT §9.
 - `planzilla run <role> <model> <line>` runs one planner, executor or verifier step on the model's provider CLI
   and prints its one-line reply.
 - `planzilla serve <plan> [--port N]` serves the live view.
+
+## Upgrading a repo
+
+To move a vendored repo to a newer Planzilla (FORMAT §11):
+
+1. Run `planzilla install` from the repo root (the version you are running), or
+   `planzilla install --version v0.2.0` for a released tag.
+2. Check `.planzilla/VERSION` shows the version you expect.
+3. Commit the result.
+4. Start a fresh agent session: skills and agents load at session start, so a running session keeps the old ones.
+
+Install rewrites only files whose bytes differ and removes files under `.planzilla/`, `.claude/agents/plz-*.md`,
+`.claude/skills/plz-*/` and `.agents/skills/plz-*/` that the new kit no longer ships. In `AGENTS.md` it replaces
+only the lines between the `planzilla:begin` and `planzilla:end` markers. It never writes `.plan/` and never
+touches any other path under `.claude/` or `.agents/`. A second run changes nothing.
+
+To get a newer `planzilla` command itself, upgrade the install first: `brew upgrade planzilla` for Homebrew, or
+rerun the `uvx` or `pipx` install.
+
+## Releasing
+
+`__version__` in `src/planzilla/__init__.py` is the one version (FORMAT §11). To release:
+
+1. Bump `__version__`.
+2. Re-vendor this repo with `planzilla install` so its own `.planzilla/` matches, and commit.
+3. Merge to `main`.
+4. Push the tag `v<version>`, for example `v0.2.0`. The tag must equal `v` plus `__version__`, or the build fails.
+5. The Release workflow (`.github/workflows/release.yml`) builds the sdist and wheel, runs the Homebrew tests
+   (`brew test` and `brew audit`) against the built formula, then publishes the GitHub release and pushes the
+   formula to the `IVIR3zaM/homebrew-tap` tap. It needs the `HOMEBREW_TAP_TOKEN` secret.
+6. Users then run `brew upgrade planzilla`.
 
 ## Contributing
 

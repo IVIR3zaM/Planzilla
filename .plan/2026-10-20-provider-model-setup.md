@@ -72,7 +72,7 @@ sdist.
 | N03 | bare provider tokens in plz run | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
 | N04 | harness key and lint rule visual | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
 | N05 | planner role and both skills | exec | N02 | opus/sonnet | 1 | 0 | DONE | |
-| N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 1 | 0 | VERIFYING | |
+| N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 1 | 0 | DONE | |
 | N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 1 | 0 | DONE | |
 | N08 | PR, merge and tag v0.2.0 | exec | N06,N07 | sonnet/- | 0 | 0 | TODO | |
 | N09 | plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
@@ -412,3 +412,4 @@ check: PASS 5/5
 
 ### N06 try 1 · 2026-10-20
 check: PASS 2/2
+verify: PASS
