@@ -1,5 +1,5 @@
 # Provider model setup and the v0.2.0 release
-status: RUNNING
+status: DONE
 created: 2026-10-20 · updated: 2026-10-20
 goal: bare codex and claude tokens run each CLI's default model, a harness key steers visual verification, plz-new-plan sets up providers, README and FORMAT teach it all, and v0.2.0 ships to the Homebrew tap
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
@@ -75,7 +75,7 @@ sdist.
 | N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 1 | 0 | DONE | |
 | N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 1 | 0 | DONE | |
 | N08 | tag v0.2.0 and release | exec | N06,N07 | sonnet/- | 1 | 1 | DONE | |
-| N09 | plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
+| N09 | plan acceptance | check | N08 | -/opus | 1 | 0 | DONE | |
 
 ## N01 preflight
 Do: Confirm the starting point: verify passes on the untouched tree; claude and codex are installed and logged
@@ -430,3 +430,7 @@ exec: DONE · 785 passed
 - Tagged v0.2.0 (lightweight) at 478d114 and pushed; origin/main and PR merge sha matched
 - Release run 39407994781: build, brew, publish all success
 check: PASS 5/5
+
+### N09 try 1 · 2026-10-20
+check: PASS 8/8
+verify: PASS
