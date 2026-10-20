@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from planzilla.plan import PUSH_ALIASES, PlanError
-from planzilla.providers import PROVIDERS, check_token, provider_of, split_token
+from planzilla.providers import HARNESSES, PROVIDERS, check_token, provider_of, split_token
 
 DEFAULT_MODELS = {"planner": "opus", "exec": "sonnet", "verify": "sonnet"}
 KEYS = (
@@ -20,6 +20,7 @@ KEYS = (
     "always_review",
     "commit_trailer",
     "providers",
+    "harness",
 )
 RETENTION = ("keep", "prune-logs", "delete", "branch-only")
 
@@ -39,6 +40,7 @@ class Config:
     always_review: bool = False
     commit_trailer: str = ""
     providers: tuple[str, ...] = ("claude",)
+    harness: str = "claude-code"
 
 
 def load_config(repo: Path) -> Config:
@@ -99,6 +101,8 @@ def _apply(config: Config, key: str, value: str) -> None:
             if role not in DEFAULT_MODELS:
                 raise ValueError("expected 'planner=<m>, exec=<m>, verify=<m>' (any subset)")
             config.models[role] = check_token(model)
+    elif key == "harness":
+        config.harness = _choice(value, HARNESSES)
     elif key == "providers":
         names = tuple(part.strip() for part in value.split(","))
         if (

@@ -147,3 +147,17 @@ def test_models_effort_and_unknown_provider_tokens() -> None:
     for bad in ("sonnet@xhigh", "gemini-3@high", "gpt-6-luna@"):
         with pytest.raises(PlanError):
             parse_config(f"providers: claude, codex\nmodels: exec={bad}\n", "c")
+
+
+def test_harness_default_and_values() -> None:
+    assert parse_config("", "c").harness == "claude-code"
+    assert parse_config("harness: codex\n", "c").harness == "codex"
+    assert parse_config("harness: claude-code\n", "c").harness == "claude-code"
+    assert load_config(FIXTURE_REPO).harness == "claude-code"
+
+
+def test_bad_harness_is_the_choice_error() -> None:
+    with pytest.raises(PlanError) as err:
+        parse_config("commit: none\nharness: cursor\n", "c")
+    assert err.value.line == 2
+    assert err.value.message == ("bad harness value 'cursor': expected one of claude-code, codex")

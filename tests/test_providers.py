@@ -1,6 +1,15 @@
 import pytest
 
-from planzilla.providers import PROVIDERS, check_token, efforts_of, provider_of, split_token
+from planzilla.providers import (
+    HARNESSES,
+    PROVIDERS,
+    check_token,
+    efforts_of,
+    has_visual_agent,
+    provider_of,
+    runs_natively,
+    split_token,
+)
 
 
 @pytest.mark.parametrize(
@@ -68,3 +77,29 @@ def test_split_token_into_name_and_effort(token: str, parts: tuple[str, str | No
 def test_bad_effort_tokens_raise(token: str) -> None:
     with pytest.raises(ValueError):
         check_token(token)
+
+
+def test_harness_facts() -> None:
+    assert HARNESSES == ("claude-code", "codex")
+    assert has_visual_agent("claude-code") is True
+    assert has_visual_agent("codex") is False
+
+
+@pytest.mark.parametrize(
+    ("harness", "token", "native"),
+    [
+        ("claude-code", "opus", True),
+        ("claude-code", "sonnet", True),
+        ("claude-code", "haiku", True),
+        ("claude-code", "fable", True),
+        ("claude-code", "sonnet@high", False),
+        ("claude-code", "claude", False),
+        ("claude-code", "codex@high", False),
+        ("claude-code", "gpt-5.5", False),
+        ("codex", "sonnet", False),
+        ("codex", "codex", False),
+        ("codex", "gpt-5.5", False),
+    ],
+)
+def test_runs_natively(harness: str, token: str, native: bool) -> None:
+    assert runs_natively(harness, token) is native

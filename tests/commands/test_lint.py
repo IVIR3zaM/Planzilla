@@ -220,3 +220,67 @@ def test_a_broken_config_is_a_parse_problem_on_the_config_line(tmp_path, monkeyp
     assert capsys.readouterr().out == (
         ".plan/config.md:2: parse: expected 'key: value', got 'nonsense'\n"
     )
+
+
+# --- visual (D6) ---------------------------------------------------------------
+
+BOTH = "providers: claude, codex\n"
+
+
+def _row(node: str, token: str, harness: str, row: int) -> str:
+    message = f"{node} verify {token} is not a model harness {harness} runs natively"
+    return f"{SM}:{row}: visual: {message}\n"
+
+
+def _criterion(node: str, harness: str, line: int) -> str:
+    return (
+        f"{SM}:{line}: visual: {node} [visual] needs a visual agent; harness {harness} has none\n"
+    )
+
+
+def _visual_repo(tmp_path: Path, monkeypatch, name: str, config: str | None) -> None:
+    root = tmp_path / name
+    shutil.copytree(FIXTURES / name, root)
+    if config is not None:
+        (root / ".plan" / "config.md").write_text(config)
+    monkeypatch.chdir(root)
+
+
+def test_visual_on_a_native_verify_model_lints_ok(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "visual-ok", BOTH)
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 2 nodes, 1 waves\n"
+
+
+def test_visual_flags_a_verify_model_the_harness_does_not_run_natively(
+    tmp_path, monkeypatch, capsys
+):
+    _visual_repo(tmp_path, monkeypatch, "visual", BOTH + "models: verify=gpt-5.5\n")
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == (
+        _row("N02", "sonnet@high", "claude-code", 17)
+        + _row("N03", "codex@high", "claude-code", 18)
+        + _row("N04", "gpt-5.5", "claude-code", 19)
+    )
+
+
+def test_visual_with_a_dash_verify_uses_the_config_models_verify(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "visual", None)
+    assert cli.main(["lint", SM]) == 1
+    out = capsys.readouterr().out
+    assert "N04" not in out  # default verify is sonnet, native
+
+
+def test_visual_under_codex_flags_each_criterion_line(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "visual", BOTH + "harness: codex\n")
+    assert cli.main(["lint", SM]) == 1
+    assert capsys.readouterr().out == "".join(
+        _criterion(node, "codex", line)
+        for node, line in (("N01", 26), ("N02", 33), ("N03", 40), ("N04", 47))
+    )
+
+
+def test_visual_never_fires_without_a_visual_criterion(tmp_path, monkeypatch, capsys):
+    _visual_repo(tmp_path, monkeypatch, "providers", BOTH + "harness: codex\n")
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 3 nodes, 1 waves\n"

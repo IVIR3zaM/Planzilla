@@ -70,7 +70,7 @@ sdist.
 | N01 | preflight | check | - | -/- | 1 | 1 | DONE | |
 | N02 | FORMAT contract for tokens, harness and docs topics | exec | N01 | opus/sonnet | 1 | 2 | DONE | |
 | N03 | bare provider tokens in plz run | exec | N02 | sonnet/sonnet | 1 | 0 | DONE | |
-| N04 | harness key and lint rule visual | exec | N03 | sonnet/sonnet | 1 | 0 | RUNNING | |
+| N04 | harness key and lint rule visual | exec | N03 | sonnet/sonnet | 1 | 0 | DONE | |
 | N05 | planner role and both skills | exec | N02 | opus/sonnet | 1 | 0 | DONE | |
 | N06 | README aligned with FORMAT | exec | N04,N05 | sonnet/opus | 0 | 0 | TODO | |
 | N07 | version 0.2.0, re-vendor, repo config | exec | N04,N05 | haiku/- | 0 | 0 | TODO | |
@@ -388,4 +388,11 @@ check: PASS 3/3
 verify: PASS
 
 ### N05 try 1 · 2026-10-20
+verify: PASS
+
+### N04 try 1 · 2026-10-20
+exec: DONE · 785 passed
+- config harness (default claude-code), providers.py harness table, lint rule visual with harness+verify passed into pure lint_plan; template and fixture updated
+- under a harness with no visual agent only the criterion message is emitted (row message would be redundant)
+check: PASS 3/3
 verify: PASS
