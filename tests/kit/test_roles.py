@@ -65,7 +65,9 @@ def test_template_ends_with_format_rules_comment(name: str) -> None:
 
 def test_planner_guides_model_choice_across_providers() -> None:
     text = (KIT / "roles" / "planner.md").read_text(encoding="utf-8")
-    words = ("providers", "@<effort>", "gpt-6.1-sol", "gpt-6-luna", "fable", "natively", "--model")
+    words = ("providers", "codex@low", "codex@medium", "codex@high", "harness")
+    words += ("fable", "natively", "--model")
     for word in words:
         assert word in text, f"planner role lacks {word}"
+    assert "gpt-6" not in text  # D3: no versioned Codex names
     assert "`plz-planner`, `plz-executor`, `plz-verifier`, `plz-visual`" in text  # L8 kept

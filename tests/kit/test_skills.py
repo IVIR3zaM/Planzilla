@@ -83,6 +83,18 @@ def test_run_plan_routes_provider_tokens_through_plz_run() -> None:
     assert "plz run" in text
 
 
+def test_run_plan_routes_per_harness() -> None:
+    text = skill_text("plz-run-plan")
+    for word in ("Codex", "plz-run", "harness"):
+        assert word in text
+
+
+def test_new_plan_detects_logins_and_harness() -> None:
+    text = skill_text("plz-new-plan")
+    for word in ("claude auth status", "codex login status", "harness", "providers"):
+        assert word in text
+
+
 def test_new_plan_dispatches_the_planner_by_the_same_rule() -> None:
     assert "plz run" in skill_text("plz-new-plan")
 
