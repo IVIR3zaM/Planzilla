@@ -325,8 +325,83 @@ def test_pair_fallback_retains_deliberate_independence(
         assert launched[0][1].failures[0].evidence == ("fixture:failure",)
 
 
+@pytest.mark.parametrize(
+    "role,line,options,message",
+    [
+        ("planner", "Outline: demo", {"initial_policy": None}, "confirmed initial_policy"),
+        ("executor", LINE, {}, "planner Outline"),
+        ("verifier", LINE, {}, "planner Outline"),
+        ("executor", "Outline: demo", {}, "planner Outline"),
+        ("verifier", "Outline: demo", {}, "planner Outline"),
+        (resolver.Request("planner", visual=True), "Outline: demo", {}, "planner Outline"),
+        ("planner", LINE, {}, "planner Outline"),
+        ("planner", "Brief: demo", {}, "planner Outline"),
+        ("planner", "Replan: demo", {}, "planner Outline"),
+        ("planner", "Revise: demo", {}, "planner Outline"),
+        ("planner", "Final review: demo", {}, "planner Outline"),
+        ("planner", "demo", {}, "planner Outline"),
+        ("planner", "Outline:", {}, "nonempty target"),
+        ("planner", "Outline:   ", {}, "nonempty target"),
+        ("planner", "Outline:  · Tier: S", {}, "nonempty target"),
+        ("planner", "Outline: demo", {"node_id": "N01"}, "node"),
+        ("planner", "Outline: demo", {"node_id": ""}, "node"),
+        ("planner", "Outline: demo · Node: N01", {}, "node"),
+        ("planner", "Outline: demo · Node:", {}, "node"),
+        ("planner", "Outline: demo", {"reviewer": resolver.Request("verifier")}, "pair/review"),
+        ("planner", "Outline: demo", {"review_line": LINE}, "pair/review"),
+        ("planner", "Outline: demo", {"review": True}, "pair/review"),
+        ("planner", "Outline: demo", {"independence": resolver.Independence()}, "pair/review"),
+        (
+            "planner",
+            "Outline: demo",
+            {"reviewer": resolver.Request("verifier"), "review_line": LINE},
+            "pair/review",
+        ),
+    ],
+)
+def test_no_plan_dispatch_rejects_non_initial_planning_before_tools(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    role: str | resolver.Request,
+    line: str,
+    options: dict[str, object],
+    message: str,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    def unexpected(*args: object, **kwargs: object) -> None:
+        pytest.fail("initial-planning rejection must precede tool inspection or delivery")
+
+    monkeypatch.setattr(host, "_capabilities", unexpected)
+    monkeypatch.setattr(host.runner, "require_cli", unexpected)
+    monkeypatch.setattr(run_cmd, "run_selection", unexpected)
+    monkeypatch.setattr("shutil.which", unexpected)
+    monkeypatch.setattr("subprocess.run", unexpected)
+    kwargs = {"initial_policy": Policy(("codex",), {"planner": PIN}, ("codex",)), **options}
+    assert (
+        host.dispatch(
+            None,
+            resolver.Request(role) if isinstance(role, str) else role,
+            line,
+            actual_harness="codex",
+            capabilities=(capability(), capability(mode="cli")),
+            adapters=(host.NativeAdapter("codex", SCHEMA, unexpected),),
+            record=unexpected,
+            **kwargs,
+        )
+        == 2
+    )
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err.startswith("error: ") and len(output.err.splitlines()) == 1
+    assert message in output.err
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("line", ["Outline: demo", "Outline: demo · Tier: S"])
 def test_initial_planning_without_plan_uses_supplied_policy(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, line: str
 ) -> None:
     monkeypatch.chdir(tmp_path)
     calls: list[dict[str, str]] = []
@@ -334,7 +409,7 @@ def test_initial_planning_without_plan_uses_supplied_policy(
         host.dispatch(
             None,
             resolver.Request("planner"),
-            "Outline: demo",
+            line,
             actual_harness="codex",
             capabilities=(capability(),),
             adapters=(adapter(calls),),
@@ -342,8 +417,15 @@ def test_initial_planning_without_plan_uses_supplied_policy(
         )
         == 0
     )
+    assert len(calls) == 1
     assert calls[0]["task_name"] == "plz-planner"
+    assert calls[0]["model"] == "gpt-6.1-sol"
     assert calls[0]["reasoning_effort"] == "high"
+    assert calls[0]["fork_turns"] == "none"
+    assert "AGENTS.md/CLAUDE.md" in calls[0]["message"]
+    assert "Follow .planzilla/roles/planner.md" in calls[0]["message"]
+    assert f"Input: {line}\n" in calls[0]["message"]
+    assert not list(tmp_path.iterdir())
 
 
 def test_graph_pin_and_state_checked_at_callable_boundary(

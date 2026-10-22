@@ -176,11 +176,31 @@ def dispatch(
 ) -> int:
     """Supported host entrypoint. Load policy, resolve once (or as a pair), consume selections.
 
-    Before a plan exists, the planner's confirmed request policy is supplied as initial_policy.
+    Before a plan exists, initial_policy authorizes only a planner Outline with a target,
+    without node binding or pair/review options. All later phases require an existing plan.
     No provider discovery, auth or subprocess call occurs until policy and resolution succeed.
     """
     try:
         runner.validate_input(request.role, line)
+        if plan_ref is None:
+            if initial_policy is None:
+                raise ValueError("initial planning requires confirmed initial_policy")
+            command, _, target = line.partition(":")
+            if request.role != "planner" or request.visual or command != "Outline":
+                raise ValueError("without a plan, only planner Outline creation is allowed")
+            if not target.split("·", 1)[0].strip():
+                raise ValueError("planner Outline requires a nonempty target")
+            if node_id is not None or any(
+                part.strip().startswith("Node:") for part in line.split("·")
+            ):
+                raise ValueError("initial planner Outline cannot bind a node; use an existing plan")
+            if (
+                reviewer is not None
+                or review_line is not None
+                or independence is not None
+                or review
+            ):
+                raise ValueError("initial planner Outline cannot use pair/review options")
         if review and reviewer is None:
             raise ValueError("review requires an executor/reviewer pair")
         if reviewer is not None:
@@ -190,8 +210,7 @@ def dispatch(
         elif independence is not None and (independence.delivery or independence.quota):
             raise ValueError("independence requires an executor/reviewer pair")
         if plan_ref is None:
-            if initial_policy is None:
-                raise ValueError("initial planning requires confirmed initial_policy")
+            assert initial_policy is not None
             policy = initial_policy
             root = Path.cwd()
             config = load_config(root)

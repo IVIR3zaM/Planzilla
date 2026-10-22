@@ -65,9 +65,81 @@ def _assert_exact_dispatch(plan_ref: str, node_id: str, role: str) -> resolver.S
     return selected
 
 
+def _check_initial_planning_boundary(root: Path) -> None:
+    """Check initial planning with controlled callbacks in the installed interpreter."""
+    calls: list[dict[str, str]] = []
+    records: list = []
+    initial = Policy(("codex",), {"planner": PIN}, ("codex",))
+    common = dict(
+        actual_harness="codex",
+        capabilities=(capability(),),
+        adapters=(adapter(calls),),
+        record=records.append,
+    )
+    before = {p: p.read_bytes() for p in (root / ".plan").rglob("*") if p.is_file()}
+    with (
+        pytest.MonkeyPatch.context() as monkeypatch,
+        patch("subprocess.run", side_effect=AssertionError("unexpected provider call")),
+        patch("shutil.which", side_effect=AssertionError("unexpected executable probe")),
+        redirect_stdout(StringIO()),
+        redirect_stderr(StringIO()) as err,
+    ):
+        monkeypatch.chdir(root)
+        with patch.object(
+            host, "_capabilities", side_effect=AssertionError("unexpected capability inspection")
+        ):
+            for role, line, options in (
+                ("executor", LINE, {}),
+                ("verifier", "Final review: demo", {}),
+                ("planner", "Brief: demo · Node: N01", {}),
+                ("planner", "Revise: demo", {}),
+                ("planner", "Outline: demo · Node: N01", {}),
+                ("planner", "Outline: demo", {"review_line": LINE}),
+                ("planner", "Outline: demo", {"independence": resolver.Independence()}),
+            ):
+                err.seek(0)
+                err.truncate()
+                assert (
+                    host.dispatch(
+                        None,
+                        resolver.Request(role),
+                        line,
+                        initial_policy=initial,
+                        **options,
+                        **common,
+                    )
+                    == 2
+                )
+                assert err.getvalue().startswith("error: ")
+                assert len(err.getvalue().splitlines()) == 1
+                assert not calls and not records
+        assert (
+            host.dispatch(
+                None, resolver.Request("planner"), "Outline: demo", initial_policy=initial, **common
+            )
+            == 0
+        )
+    assert len(calls) == len(records) == 1
+    assert calls[0]["task_name"] == "plz-planner"
+    assert calls[0]["model"] == "gpt-6.1-sol"
+    assert calls[0]["reasoning_effort"] == "high"
+    assert calls[0]["fork_turns"] == "none"
+    assert "AGENTS.md/CLAUDE.md" in calls[0]["message"]
+    selected = records[0]
+    assert selected.original is None
+    assert (selected.intent, selected.exact_id, selected.effort, selected.route) == (
+        PIN,
+        "gpt-6.1-sol",
+        "high",
+        "codex",
+    ), selected
+    assert {p: p.read_bytes() for p in (root / ".plan").rglob("*") if p.is_file()} == before
+
+
 def _check_installed_graph_lifecycle(root: Path) -> None:
     """Run in an isolated interpreter importing the freshly installed package."""
     assert Path(host.__file__).resolve().is_relative_to(root / ".planzilla/lib")
+    _check_initial_planning_boundary(root)
     medium_pair = f"gpt-6.1-sol@medium/{PIN}"
     plan = make_l(
         root,
@@ -195,6 +267,14 @@ def test_codex_policy_survives_every_lifecycle_phase(
     plan = make_l(
         tmp_path, [row("N01", model=f"gpt-6.1-sol@medium/{PIN}")], status="DRAFT", extra=POLICY
     )
+    assert (
+        host.dispatch(
+            str(plan), resolver.Request("planner"), "Revise: demo", initial_policy=initial, **common
+        )
+        == 2
+    )
+    assert "cannot override an existing plan" in capsys.readouterr().err
+    assert len(calls) == len(records) == 1
     assert host.dispatch(str(plan), resolver.Request("planner"), "Revise: demo", **common) == 0
     graph = plan / "plan.md"
     # Simulate planner-owned confirmation and JIT brief writes in this controlled fixture.

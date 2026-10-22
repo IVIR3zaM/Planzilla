@@ -525,10 +525,17 @@ Details:
   phase selection. For deliberate independence pass both requests and lines on each invocation: resolve
   the pair together, launch only execution with `review=False`, then after checks and `set VERIFYING`
   resolve again and launch only the separate reviewer with `review=True`. No review runs ahead of state.
-  Without a plan use `plan_ref=None` and a confirmed, effectively composed `initial_policy: Policy` for
-  Outline/DRAFT; existing plans reject an initial-policy override. Planner-wide Revise/final review may
-  omit a node and use effective role defaults. `record` receives each full immutable selection/handoff
-  before invocation (both selections for a pair); it is a host-owned sink, not capability proof.
+  Without a plan, `plan_ref=None` requires a confirmed, effectively composed `initial_policy: Policy`
+  and permits only a planner `Outline: <target>` request with a nonempty target for Outline/DRAFT creation.
+  Missing initial policy, other roles or commands (including Plan, Brief, Replan, Revise and final review),
+  visual requests, explicit `node_id`, input `Node:` fields and supplied pair/review options (`reviewer`,
+  `review_line`, `independence` or `review=True`) exit 2 with a one-line error before capability/schema
+  inspection, executable/auth probes, subprocesses, adapter invocation or selection recording.
+  Later lifecycle phases require an existing plan, which rejects an initial-policy override and retains
+  effective policy, coordinator restrictions and node Graph pins/state checks. With an existing plan,
+  planner-wide Revise/final review may omit a node and use effective role defaults.
+  `record` receives each full immutable selection/handoff before invocation (both selections for a pair);
+  it is a host-owned sink, not capability proof.
   `NativeAdapter(route, schema, invoke, model_field="model", effort_field="reasoning_effort",
   role_field="task_name", input_field="message", fixed={"fork_turns": "none"}, delivery_id=None)`
   describes one actually callable tool. `schema` maps real exposed field names to accepted-value tuples,

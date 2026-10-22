@@ -38,7 +38,9 @@ models: planner=gpt-6.1-sol@high, exec=gpt-6.1-sol@high, verify=gpt-6.1-sol@high
 | N08 | fix Codex capability-aware dispatch | exec | N05,N06,N07 | gpt-6.1-sol@high/gpt-6.1-sol@high | 2 | 2 | DONE | |
 | N09 | clarify runner lifecycle and failure diagnostics | exec | N08 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 1 | DONE | |
 | N10 | integrate compatibility regressions and docs | exec | N09 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
-| N11 | whole-plan acceptance | check | N10 | -/gpt-6.1-sol@high | 0 | 0 | TODO | |
+| N11 | whole-plan acceptance | check | N13 | -/gpt-6.1-sol@high | 0 | 1 | TODO | |
+| N12 | restrict initial-policy dispatch to planner Outline | exec | N10 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
+| N13 | anchor review independence to completed execution | exec | N12 | gpt-6.1-sol@high/gpt-6.1-sol@high | 0 | 0 | TODO | |
 
 ### Planned node scope
 
