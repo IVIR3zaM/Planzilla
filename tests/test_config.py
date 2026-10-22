@@ -160,4 +160,61 @@ def test_bad_harness_is_the_choice_error() -> None:
     with pytest.raises(PlanError) as err:
         parse_config("commit: none\nharness: cursor\n", "c")
     assert err.value.line == 2
-    assert err.value.message == ("bad harness value 'cursor': expected one of claude-code, codex")
+    assert err.value.message == (
+        "bad harness value 'cursor': expected one of claude-code, codex, copilot"
+    )
+
+
+def test_portable_opus_with_codex_only_policy() -> None:
+    config = parse_config("models: planner=opus\nproviders: codex\n", "c")
+    assert config.models["planner"] == "opus"
+
+
+def test_copilot_accepts_overlapping_exact_model_families() -> None:
+    config = parse_config(
+        "models: planner=copilot::claude-sonnet-5@high, exec=copilot::gpt-5.6-sol@medium\n"
+        "providers: copilot\nharness: copilot\n",
+        "c",
+    )
+    assert config.providers == ("copilot",)
+    assert config.models["exec"] == "copilot::gpt-5.6-sol@medium"
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_explicit_route_restrictions_are_order_independent(reverse: bool) -> None:
+    lines = ["models: planner=claude::opus", "providers: codex, copilot"]
+    if reverse:
+        lines.reverse()
+    with pytest.raises(PlanError) as error:
+        parse_config("\n".join(lines), "policy.md")
+    assert error.value.line == lines.index("models: planner=claude::opus") + 1
+    assert "provider claude is not in providers" in error.value.message
+
+
+@pytest.mark.parametrize("value", ["", "exec=opus, exec=sonnet", "writer=opus", "exec=Bad"])
+def test_models_reject_empty_duplicate_unknown_and_bad_tokens(value: str) -> None:
+    with pytest.raises(PlanError):
+        parse_config(f"models: {value}\n", "c")
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "opus",
+        "opus@high",
+        "codex::opus",
+        "copilot::opus",
+        "claude::claude-sonnet-5@high",
+        "copilot::claude-sonnet-5@high",
+        "codex::gpt-5.6-sol@medium",
+        "copilot::gpt-5.6-sol@medium",
+    ],
+)
+def test_config_graph_and_set_share_token_acceptance(token: str) -> None:
+    from planzilla import state
+    from tests.test_plan import policy_plan
+
+    config = parse_config(f"providers: claude, codex, copilot\nmodels: exec={token}\n", "config.md")
+    plan = policy_plan(model=f"{token}/-")
+    nodes, _ = state.set_node(plan.nodes, "N01", None, model=f"{token}/-", facts={}, budgets=(2, 2))
+    assert config.models["exec"] == plan.nodes[0].exec_model == nodes[0].exec_model == token

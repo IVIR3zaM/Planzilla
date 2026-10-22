@@ -51,6 +51,23 @@ def test_render_plan_includes_graph_changes(tmp_path: Path) -> None:
     assert out == render_graph(plan)
 
 
+def test_policy_and_qualified_rows_survive_a_different_row_edit() -> None:
+    from planzilla.plan import parse_plan
+    from tests.test_plan import policy_plan
+
+    second_row = "| N02 | other | exec | N01 | copilot::gpt-5.6-sol@high/- | 0 | 0 | TODO | |\n"
+    original = (
+        policy_plan(
+            "providers: claude, copilot\nmodels: planner=copilot::opus\n",
+            model="claude::opus/copilot::opus",
+        ).text
+        + second_row
+    )
+    plan = parse_plan(original, Path("policy.md"), Path("policy.md"))
+    plan.node("N02").status = "RUNNING"
+    assert render_graph(plan) == original.replace(second_row, second_row.replace("TODO", "RUNNING"))
+
+
 def test_append_entry_new_heading_when_key_differs() -> None:
     log = "# N01 log\n\n## try 1 · 2026-01-03\nexec: DONE · ok\n"
     out = append_entry(log, "## try 2 · 2026-10-01", "check", "FAIL C2", ["C2 exit 1: x"])

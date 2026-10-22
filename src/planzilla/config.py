@@ -4,8 +4,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from planzilla.plan import PUSH_ALIASES, PlanError
-from planzilla.providers import HARNESSES, PROVIDERS, check_token, provider_of, split_token
+from planzilla.plan import PUSH_ALIASES, Header, PlanError
+from planzilla.providers import HARNESSES, check_allowed, parse_models, parse_providers
 
 DEFAULT_MODELS = {"planner": "opus", "exec": "sonnet", "verify": "sonnet"}
 KEYS = (
@@ -41,6 +41,26 @@ class Config:
     commit_trailer: str = ""
     providers: tuple[str, ...] = ("claude",)
     harness: str = "claude-code"
+
+
+@dataclass(frozen=True)
+class Policy:
+    providers: tuple[str, ...]
+    models: dict[str, str]
+
+
+def effective_policy(config: Config, header: Header, file: Path | str) -> Policy:
+    """Compose supplied data only: plan routes replace, plan roles override individually."""
+    providers = config.providers if header.providers is None else header.providers
+    models = {**config.models, **header.models}
+    for role, model in models.items():
+        try:
+            check_allowed(model, providers)
+        except ValueError as error:
+            key = "models" if role in header.models else "providers"
+            number = header.lines.get(key, 1)
+            raise PlanError(file, number, f"bad models value {model!r}: {error}") from None
+    return Policy(providers, models)
 
 
 def load_config(repo: Path) -> Config:
@@ -95,25 +115,11 @@ def _apply(config: Config, key: str, value: str) -> None:
     elif key == "commit_trailer":
         config.commit_trailer = value.replace("\\n", "\n")
     elif key == "models":
-        for pair in filter(None, (part.strip() for part in value.split(","))):
-            role, _, model = pair.partition("=")
-            role, model = role.strip(), model.strip()
-            if role not in DEFAULT_MODELS:
-                raise ValueError("expected 'planner=<m>, exec=<m>, verify=<m>' (any subset)")
-            config.models[role] = check_token(model)
+        config.models.update(parse_models(value))
     elif key == "harness":
         config.harness = _choice(value, HARNESSES)
     elif key == "providers":
-        names = tuple(part.strip() for part in value.split(","))
-        if (
-            not value
-            or any(name not in PROVIDERS for name in names)
-            or len(set(names)) < len(names)
-        ):
-            raise ValueError(
-                f"expected a comma-separated subset of {', '.join(PROVIDERS)}, no repeats"
-            )
-        config.providers = names
+        config.providers = parse_providers(value)
 
 
 def _choice(value: str, allowed: tuple[str, ...]) -> str:
@@ -123,10 +129,9 @@ def _choice(value: str, allowed: tuple[str, ...]) -> str:
 
 
 def _check_listed(config: Config, number: int, file: Path | str) -> None:
-    """Every `models` token's provider must be in `providers` (either line order)."""
+    """Check route constraints after every field has been parsed (either line order)."""
     for model in config.models.values():
-        provider = provider_of(split_token(model)[0])
-        if provider is not None and provider not in config.providers:
-            raise PlanError(
-                file, number, f"bad models value {model!r}: provider {provider} is not in providers"
-            )
+        try:
+            check_allowed(model, config.providers)
+        except ValueError as error:
+            raise PlanError(file, number, f"bad models value {model!r}: {error}") from None

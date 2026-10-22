@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from planzilla.providers import check_token
+from planzilla.providers import check_allowed, check_token, parse_models, parse_providers
 
 NODE_ID = r"N[0-9]{2,}[a-z]?"
 PLAN_NAME = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})-([a-z0-9]+(?:-[a-z0-9]+)*)")
@@ -26,7 +26,18 @@ STATUSES = (
 NODE_TYPES = ("exec", "check", "gate")
 TAGS = ("cmd", "review", "smoke", "visual", "human")
 FIELDS = ("Do", "Context", "Read", "Write", "Log", "Test first", "Done when")
-HEADER_KEYS = ("status", "created", "goal", "verify", "commit", "push", "budgets", "tier")
+HEADER_KEYS = (
+    "status",
+    "created",
+    "goal",
+    "verify",
+    "commit",
+    "push",
+    "budgets",
+    "tier",
+    "providers",
+    "models",
+)
 REQUIRED_HEADER_KEYS = ("status", "created", "goal", "verify", "commit")
 GRAPH_HEADER = "| id | title | type | deps | model | try | rp | status | note |"
 GRAPH_SEPARATOR = "|----|-------|------|------|-------|-----|----|--------|------|"
@@ -34,7 +45,7 @@ PUSH_ALIASES = {"per-node": "per-node", "none": "none", "yes": "per-node", "no":
 
 _NODE_RE = re.compile(NODE_ID)
 _MODEL_RE = re.compile(r"([^/]+)/([^/]+)")
-_HEADER_LINE_RE = re.compile(r"([a-z_]+): (.*)")
+_HEADER_LINE_RE = re.compile(r"([a-z_]+):(?: (.*))?")
 _CREATED_RE = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2}) · updated: ([0-9]{4}-[0-9]{2}-[0-9]{2})")
 _BUDGETS_RE = re.compile(r"([0-9]+) tries per brief · ([0-9]+) replans per node")
 _DECISION_RE = re.compile(r"- (D[0-9]+) (.*)")
@@ -90,6 +101,8 @@ class Header:
     replans_budget: int
     tier: str | None
     lines: dict[str, int] = field(default_factory=dict, compare=False)
+    providers: tuple[str, ...] | None = None
+    models: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -291,7 +304,7 @@ def _parse_header(lines: list[str], file: Path, single_file: bool) -> Header:
         match = _HEADER_LINE_RE.fullmatch(lines[index])
         if not match:
             raise PlanError(file, number, f"bad header line: {lines[index]!r}")
-        key, value = match.group(1), match.group(2).strip()
+        key, value = match.group(1), (match.group(2) or "").strip()
         if key not in HEADER_KEYS:
             raise PlanError(file, number, f"unknown header key: {key}")
         if key in values:
@@ -332,6 +345,28 @@ def _parse_header(lines: list[str], file: Path, single_file: bool) -> Header:
     tier = values.get("tier")
     if tier is not None and (not single_file or tier not in ("S", "M")):
         raise bad("tier")
+    providers = None
+    models: dict[str, str] = {}
+    for key in ("providers", "models"):
+        if key not in values:
+            continue
+        try:
+            if key == "providers":
+                providers = parse_providers(values[key])
+            else:
+                models = parse_models(values[key])
+        except ValueError as error:
+            raise PlanError(
+                file, numbers[key], f"bad {key} value {values[key]!r}: {error}"
+            ) from None
+    if providers is not None:
+        for model in models.values():
+            try:
+                check_allowed(model, providers)
+            except ValueError as error:
+                raise PlanError(
+                    file, numbers["models"], f"bad models value {model!r}: {error}"
+                ) from None
     return Header(
         status=values["status"],
         created=created.group(1),
@@ -344,6 +379,8 @@ def _parse_header(lines: list[str], file: Path, single_file: bool) -> Header:
         replans_budget=replans_budget,
         tier=tier,
         lines=numbers,
+        providers=providers,
+        models=models,
     )
 
 
