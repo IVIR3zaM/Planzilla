@@ -217,3 +217,38 @@ def test_exit_message_prefers_stderr_then_stdout():
     assert runner.exit_message("codex", 7, "o1\no2\n", "e1\ne2\n\n") == "codex exited 7: e2"
     assert runner.exit_message("claude", 1, "o1\no2\n", " \n") == "claude exited 1: o2"
     assert runner.exit_message("claude", 1, "", "") == "claude exited 1"
+
+
+@pytest.mark.parametrize(
+    ("token", "route", "name", "effort"),
+    [
+        ("copilot", "copilot", "copilot", None),
+        ("copilot@high", "copilot", "copilot", "high"),
+        ("copilot::claude-sonnet-5@high", "copilot", "claude-sonnet-5", "high"),
+        ("copilot::gpt-6.1-sol@high", "copilot", "gpt-6.1-sol", "high"),
+        ("claude::claude-sonnet-5@high", "claude", "claude-sonnet-5", "high"),
+        ("codex::gpt-6.1-sol@medium", "codex", "gpt-6.1-sol", "medium"),
+    ],
+)
+def test_validate_preserves_explicit_delivery(
+    token: str, route: str, name: str, effort: str | None
+) -> None:
+    assert runner.validate("executor", token, "x") == (route, name, effort)
+
+
+@pytest.mark.parametrize("token", ["codex::opus", "claude::sonnet@high"])
+def test_qualified_portable_intent_needs_resolution(token: str) -> None:
+    with pytest.raises(ValueError, match="resolve.*portable intent"):
+        runner.validate("executor", token, "x")
+
+
+@pytest.mark.parametrize("route", ["copilot", "unknown"])
+def test_unsupported_cli_never_falls_through_claude_helpers(route: str) -> None:
+    with pytest.raises(ValueError, match="unavailable|unsupported"):
+        runner.build_argv("executor", route, "gpt-6.1-sol", "high", "/repo", None)
+    with pytest.raises(ValueError, match="unavailable|unsupported"):
+        runner.login_argv(route)
+    with pytest.raises(ValueError, match="unavailable|unsupported"):
+        runner.logged_in(route, 0, '{"loggedIn": true}')
+    with pytest.raises(ValueError, match="unavailable|unsupported"):
+        runner.login_hint(route)

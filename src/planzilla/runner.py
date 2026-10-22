@@ -2,7 +2,8 @@
 
 import json
 
-from planzilla.providers import provider_of, split_token
+from planzilla.providers import PORTABLE_ALIASES, PROVIDERS, provider_of, route_of, split_token
+from planzilla.resolver import Selection, Unavailable
 
 ROLES = ("planner", "executor", "verifier")
 _CLAUDE_TOOLS = {
@@ -13,19 +14,65 @@ _CLAUDE_TOOLS = {
 _LOGIN_HINT = {"codex": "codex login", "claude": "claude auth login"}
 
 
-def validate(role: str, model: str, line: str) -> tuple[str, str, str | None]:
-    """Return (cli, name, effort) or raise ValueError with the reason."""
+class UnsupportedSelection(ValueError):
+    """Valid input requiring a supported delivery or a dispatch handoff (exit 3)."""
+
+
+def validate_input(role: str, line: str) -> None:
     if role not in ROLES:
         raise ValueError(f"unknown role {role!r}: expected {', '.join(ROLES)}")
-    name, effort = split_token(model)
-    provider = provider_of(name)
-    if provider is None:
-        raise ValueError(f"model {name!r} has no provider")
     if not line.strip():
         raise ValueError("the input line is empty")
     if "".join(line.splitlines()) != line:
         raise ValueError("the input line holds a line break")
+
+
+def validate(role: str, model: str, line: str) -> tuple[str, str, str | None]:
+    """Preserve qualifiers; unqualified Claude/Codex callers keep legacy CLI behavior."""
+    validate_input(role, line)
+    name, effort = split_token(model)
+    route = route_of(model)
+    if "::" in model and name in PORTABLE_ALIASES and route != "copilot":
+        raise UnsupportedSelection("resolve qualified portable intent before CLI dispatch/handoff")
+    # Family classification is only the compatibility path for unqualified direct callers.
+    provider = route or provider_of(name)
+    if provider is None:
+        raise ValueError(f"model {name!r} has no provider")
     return provider, name, effort
+
+
+def require_cli(cli: str) -> None:
+    """N02 did not demonstrate external Copilot; supplied mocks cannot enable it."""
+    if cli == "copilot":
+        raise UnsupportedSelection(
+            "external Copilot unavailable: missing demonstrated entrypoint/reply evidence; "
+            "use a supported delivery or native dispatch/handoff"
+        )
+    if cli not in ("claude", "codex"):
+        raise UnsupportedSelection(f"unsupported CLI delivery {cli!r}; use dispatch/handoff")
+
+
+def validate_selection(
+    role: str, selection: Selection | Unavailable, line: str
+) -> tuple[str, str, str | None]:
+    """Consume a policy-resolved CLI tuple; policy/capability resolution stays with callers.
+
+    Unlike legacy direct tokens, resolved requests always enforce the exact model and effort.
+    Native selections remain usable by native dispatch even when this runner cannot launch them.
+    """
+    validate_input(role, line)
+    if isinstance(selection, Unavailable):
+        raise UnsupportedSelection(f"{selection.detail}; use dispatch/handoff")
+    if selection.mode == "native":
+        raise UnsupportedSelection(f"{selection.route} selection requires native dispatch/handoff")
+    if selection.mode != "cli":
+        raise UnsupportedSelection(f"unsupported delivery mode {selection.mode!r}")
+    require_cli(selection.route)
+    if selection.exact_id in (*PORTABLE_ALIASES, *PROVIDERS):
+        raise UnsupportedSelection(
+            "resolve portable intent/default to an exact model before dispatch"
+        )
+    return selection.route, selection.exact_id, selection.effort
 
 
 def build_prompt(role: str, line: str) -> str:
@@ -43,6 +90,7 @@ def build_argv(
 
     A bare token (`name == cli`) leaves the model flag out: the CLI picks its default model.
     """
+    require_cli(cli)
     if cli == "codex":
         argv = ["codex", "exec"] + ([] if name == cli else ["-m", name])
         if effort is not None:
@@ -76,11 +124,13 @@ def build_argv(
 
 
 def login_argv(cli: str) -> list[str]:
+    require_cli(cli)
     return ["codex", "login", "status"] if cli == "codex" else ["claude", "auth", "status"]
 
 
 def logged_in(cli: str, code: int, stdout: str) -> bool:
     """codex: exit 0. claude: exit 0 and stdout JSON with `loggedIn` true."""
+    require_cli(cli)
     if code != 0:
         return False
     if cli == "codex":
@@ -93,6 +143,7 @@ def logged_in(cli: str, code: int, stdout: str) -> bool:
 
 
 def login_hint(cli: str) -> str:
+    require_cli(cli)
     return f"{cli} is not logged in; run {_LOGIN_HINT[cli]}"
 
 
