@@ -1,0 +1,384 @@
+{
+  "date": "2026-10-22",
+  "model_auth_quota_calls": "none; all runner process calls mocked",
+  "dispatch": [
+    {
+      "evidence": "mocked",
+      "role": "planner",
+      "model": "gpt-6.1-sol@medium",
+      "outcome": "success",
+      "exit": 0,
+      "stdout": "DONE probe | tests: 0 passed\n",
+      "stderr": "",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"medium\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "planner",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "success",
+      "exit": 0,
+      "stdout": "DONE probe | tests: 0 passed\n",
+      "stderr": "",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@medium",
+      "outcome": "success",
+      "exit": 0,
+      "stdout": "DONE probe | tests: 0 passed\n",
+      "stderr": "",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"medium\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "success",
+      "exit": 0,
+      "stdout": "DONE probe | tests: 0 passed\n",
+      "stderr": "",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "verifier",
+      "model": "gpt-6.1-sol@medium",
+      "outcome": "success",
+      "exit": 0,
+      "stdout": "DONE probe | tests: 0 passed\n",
+      "stderr": "",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"medium\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "verifier",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "success",
+      "exit": 0,
+      "stdout": "DONE probe | tests: 0 passed\n",
+      "stderr": "",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "auth",
+      "exit": 3,
+      "stdout": "",
+      "stderr": "error: codex is not logged in; run codex login\n",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "quota",
+      "exit": 3,
+      "stdout": "",
+      "stderr": "error: codex exited 1: rate_limit_error: usage limit reached (synthetic fixture)\n",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "signal",
+      "exit": 3,
+      "stdout": "",
+      "stderr": "error: codex exited -15\n",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "spawn",
+      "exit": 3,
+      "stdout": "",
+      "stderr": "error: codex not found on PATH\n",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    },
+    {
+      "evidence": "mocked",
+      "role": "executor",
+      "model": "gpt-6.1-sol@high",
+      "outcome": "empty",
+      "exit": 3,
+      "stdout": "",
+      "stderr": "error: codex gave an empty reply\n",
+      "argv": [
+        [
+          "codex",
+          "login",
+          "status"
+        ],
+        [
+          "codex",
+          "exec",
+          "-m",
+          "gpt-6.1-sol",
+          "-c",
+          "model_reasoning_effort=\"high\"",
+          "-s",
+          "workspace-write",
+          "-c",
+          "sandbox_workspace_write.network_access=true",
+          "-C",
+          "<repo>",
+          "-o",
+          "<artifact-dir>/mock-reply/reply.txt",
+          "-"
+        ]
+      ]
+    }
+  ],
+  "default_opus_under_current_resolver": [
+    "claude",
+    "opus",
+    null
+  ],
+  "name_collision": {
+    "opus": [
+      "claude",
+      "opus",
+      null
+    ],
+    "claude-opus-5.5": [
+      "claude",
+      "claude-opus-5.5",
+      null
+    ],
+    "gpt-6.1-sol": [
+      "codex",
+      "gpt-6.1-sol",
+      null
+    ]
+  },
+  "wait_cancel": {
+    "evidence": "demonstrated, benign local process only",
+    "ready": "ready",
+    "pending_before_cancel": true,
+    "action": "parent explicitly sent terminate()",
+    "returncode": -15,
+    "provider_or_plz_cancellation": "not exercised"
+  }
+}

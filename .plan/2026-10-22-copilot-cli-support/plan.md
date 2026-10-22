@@ -24,7 +24,7 @@ budgets: 2 tries per brief · 2 replans per node
 | id | title | type | deps | model | try | rp | status | note |
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | codex/codex | 1 | 0 | DONE | |
-| N02 | establish harness and route capability evidence | exec | N01 | codex/codex | 0 | 0 | TODO | |
+| N02 | establish harness and route capability evidence | exec | N01 | codex/codex | 1 | 0 | DONE | |
 | N03 | define natural alias and delivery-route contract | exec | N02 | codex/codex | 0 | 0 | TODO | |
 | N04 | resolve intent and independent delivery routes | exec | N03 | codex/codex | 0 | 0 | TODO | |
 | N05 | install Copilot custom agents | exec | N04 | codex/codex | 0 | 0 | TODO | |
