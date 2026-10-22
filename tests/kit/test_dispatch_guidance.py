@@ -230,3 +230,17 @@ def test_d8_pins_cover_every_phase_with_fixtures_only(
         "codex",
     )
     assert selection.mismatch and selection.separate_context
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_workflows_use_supported_policy_and_callable_dispatch(name: str) -> None:
+    require(
+        section(name, "Dispatch contract"),
+        "planzilla.commands.dispatch.dispatch",
+        "NativeAdapter",
+        "plz dispatch",
+        "run_selection",
+        "only the current phase",
+        "review=True",
+    )
+    require(section(name, "Phase policy"), "plz policy", "--harnesses", "--providers", "--models")

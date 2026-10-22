@@ -89,8 +89,8 @@ line, in this order (optional lines may be absent):
 | `providers` | nonempty comma-separated subset of `claude`, `codex`, `copilot`, no repeats | no, inherit repository providers | planner |
 | `models` | `planner=<m>, exec=<m>, verify=<m>` (any nonempty subset, no repeated roles) | no, inherit repository role defaults individually | planner |
 
-An unknown key, a missing required key or a bad value is a parse error. The CLI rewrites only the `status:` value
-and the `updated:` date, nothing else in the header.
+An unknown key, a missing required key or a bad value is a parse error. Normal Graph writes rewrite only the `status:` value and the `updated:` date. The supported `policy`
+command below additionally replaces confirmed policy fields without rewriting Graph or prose.
 
 Optional policy lines follow `tier` (or the last present earlier header key), in order `harnesses`,
 `providers`, `models`. A plan's providers **replace** the repository list; they are never unioned with it. Merge models
@@ -455,7 +455,7 @@ or plan error (unknown plan or node, parse error, cycle, illegal transition, fai
 `3` external failure (git, push, network, lock timeout). Errors print one line `error: <message>` to stderr and
 nothing to stdout. Stubs print `not implemented: <name>` to stderr and exit 2.
 
-**Writes and locking.** Commands that write plan files (`set`, `resume`, `log`, `check`, `commit`) first take the
+**Writes and locking.** Commands that write plan files (`policy`, `set`, `resume`, `log`, `check`, `commit`) first take the
 lock `<plan path>.lock` (a directory created with `os.mkdir` next to the plan file or plan directory), retrying
 every 50 ms for 10 s, and remove it when done; a lock older than 60 s is stale and removed; timeout exits 3.
 Files are replaced atomically (write a temp file, then `os.replace`).
@@ -463,6 +463,7 @@ Files are replaced atomically (write a temp file, then `os.replace`).
 | command | arguments | stdout (each line one line; `<…>` filled in) | exit |
 |---------|-----------|----------------------------------------------|------|
 | `install` | `[--target DIR]` (default cwd) `[--version vX]` `[--archive-url URL]` | `installed planzilla <version> into <target>: <a> added, <c> changed, <r> removed` | 0; 2 target missing; 3 download or extract failed (target unchanged) |
+| `policy` | `<plan> [--harnesses LIST] [--providers LIST] [--models ROLES]` (at least one) | `policy updated: <plan name>` | 0; 2 invalid policy/Graph; 3 lock/write failure |
 | `next` | `<plan>` | one line per action: `<id> <action> <model>`; nothing when no action | 0; 2 |
 | `set` | `<plan> <id> [STATUS] [--note TEXT] [--add] [--title T] [--type exec\|check\|gate] [--deps D] [--model M]` | `<id> <STATUS> try <t> rp <r>`, plus ` · dispatch <agent> <model>` when STATUS is BRIEFING, RUNNING, VERIFYING or REPLAN | 0 (also when redirected); 2 |
 | `resume` | `<plan>` | per in-flight node: `<id> <STATUS> try <t> rp <r> · rerun`; then per WAITING or BLOCKED node: `<id> <STATUS> try <t> rp <r> · held` | 0; 2 |
@@ -473,13 +474,14 @@ Files are replaced atomically (write a temp file, then `os.replace`).
 | `status` | `<plan>` | the §12 text | 0; 2 |
 | `stats` | `<plan>` | the §12 line | 0; 2 |
 | `lint` | `<plan>` | per problem: `<file>:<line>: <rule>: <message>`; when clean: `lint ok: <n> nodes, <w> waves` | 0 clean; 1 problems; 2 unreadable plan |
-| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply |
 | `serve` | `<plan> [--port N]` (default 8765) | `serving <slug> on http://127.0.0.1:<port>/`, then blocks until Ctrl-C | 0; 3 port in use |
+| `dispatch` | `<plan> <role> <line> --actual-harness H --facts FILE [--node ID] [--model TOKEN] [--allow-low] [--record FILE]` | the current role's one-line reply | 0; 2 invalid input/policy/state; 3 unavailable delivery/role failure |
+| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply |
 
 Details:
 - `next`: lines in Graph row order; `<action>` is `brief`, `exec`, `check`, `verify`, `replan` or `ask` (§5
-  "ready"); `<model>`: exec → the Graph `<exec>`; verify → the Graph `<verify>` (config `models` `verify` if `-`);
-  brief and replan → config `models` `planner`; check and ask → `-`. `ask` lines are printed only when no other
+  "ready"); `<model>`: exec → the Graph `<exec>`; verify → the Graph `<verify>` (effective `models` `verify` if `-`);
+  brief and replan → effective `models` `planner`; check and ask → `-`. `ask` lines are printed only when no other
   line is. BLOCKED nodes never print a line. A cycle exits 2 with `error: cycle N03 -> N05 -> N03`.
 - `set`: STATUS may be omitted only with structure options. `--add` appends a new row (`--title`, `--deps`,
   `--model` required, `--type` default `exec`, try 0, rp 0, TODO); `--title`, `--deps`, `--model` alone edit a
@@ -487,6 +489,59 @@ Details:
   RUNNING → `plz-executor`; VERIFYING → `plz-visual` if the node has a `[visual]` criterion, else `plz-verifier`;
   model as in `next`. During a run, `set` is the only writer of Graph rows (D8); the planner adds or edits rows
   through it.
+- `policy`: replace each supplied existing policy header field (or insert it in canonical header order);
+  omitted fields remain byte-identical. `--models` replaces the plan's role-override field as a whole;
+  omitted roles inherit repository defaults individually. Values use the §3 parsers, including nonempty,
+  duplicate-free lists. Under the plan lock, parse all proposed fields together, compose effective policy
+  and validate every existing Graph token against it before any write. Update only policy fields and the
+  `updated:` date atomically; preserve unrelated headers, Intent, Decisions, Graph, briefs and logs. Invalid
+  values, empty intersections and incompatible inherited defaults/Graph routes exit 2 without writes.
+  No options exits 2. No auth, model or quota probes occur. Example of a confirmed migration:
+  `plz policy <plan> --harnesses codex --providers codex --models 'planner=gpt-6.1-sol@high, exec=gpt-6.1-sol@high, verify=gpt-6.1-sol@high'`.
+- `next`, `set` and `resume` compose effective defaults before actionable output or state/log writes.
+  With explicit plan policy, validate Graph restrictions too, including add/edit/retry/new nodes. Omitted
+  plan policy preserves legacy Graph editing behavior; every capability-aware dispatch still resolves and
+  enforces its request against effective providers. Rejected operations leave plan/log bytes unchanged.
+- `dispatch`: `FILE` is a UTF-8 JSON array of §14 `Capability` records (nested `Model`/`Failure` objects;
+  tuples become JSON arrays). Facts are supplied observed evidence, never auto-discovered or promoted from
+  fixtures to proof of live access. The actual harness is required separately from repository `harness`.
+  Excluded providers have no model/auth/quota probes. The command connects policy and resolution to
+  `commands.run.run_selection`, retaining the selected exact model/effort/route without prefix reselection.
+  CLI execution uses the referenced plan's repository as its working directory, including auth-status
+  checks and role-file lookup; legacy direct `run` continues to use the caller's working directory.
+  The shell has no native callback: absent native controls trigger pin-preserving proven CLI fallback or
+  one focused handoff naming operation, constraint, evidence and alternatives (exit 3). External Copilot
+  remains disabled. `--record FILE` writes an array of the full selection/handoff records as JSON, without
+  changing plan state. Node-bearing input binds to that Graph row even without `--node`; an explicit node
+  must agree. Node phases require BRIEFING/REPLAN, RUNNING or VERIFYING for planner, executor or verifier;
+  conflicting `--model` cannot override Graph pins. Executors require a node. Before dispatching the next
+  phase the orchestrator still performs `set`; `dispatch` never changes state. `--allow-low` is an explicit
+  task permission. Visual work requires the host-native proven surface and never a text-only CLI.
+- **Callable host adapter**: `planzilla.commands.dispatch.dispatch(plan_ref, Request, line, *,
+  actual_harness, capabilities, adapters=(), node_id=None, reviewer=None, review_line=None,
+  independence=None, review=False, initial_policy=None, record=None) -> int` is the supported native/CLI
+  boundary. It loads existing plan policy, checks actual coordinator before capabilities, reconciles the
+  observed callable schema, calls `resolve`/`resolve_pair`, records selections, then consumes the current
+  phase selection. For deliberate independence pass both requests and lines on each invocation: resolve
+  the pair together, launch only execution with `review=False`, then after checks and `set VERIFYING`
+  resolve again and launch only the separate reviewer with `review=True`. No review runs ahead of state.
+  Without a plan use `plan_ref=None` and a confirmed, effectively composed `initial_policy: Policy` for
+  Outline/DRAFT; existing plans reject an initial-policy override. Planner-wide Revise/final review may
+  omit a node and use effective role defaults. `record` receives each full immutable selection/handoff
+  before invocation (both selections for a pair); it is a host-owned sink, not capability proof.
+  `NativeAdapter(route, schema, invoke, model_field="model", effort_field="reasoning_effort",
+  role_field="task_name", input_field="message", fixed={"fork_turns": "none"}, delivery_id=None)`
+  describes one actually callable tool. `schema` maps real exposed field names to accepted-value tuples,
+  or `None` for unrestricted string fields. The host supplies `invoke(fields) -> str`, which invokes the
+  real tool and returns its completed reply; Python cannot manufacture that bridge. Codex requires the
+  exact exposed `model`, `reasoning_effort`, `task_name`, `message`, `fork_turns="none"` controls; model
+  IDs and efforts are intersected with accepted schema values. Other hosts supply their demonstrated
+  field names/fixed controls explicitly, including Copilot profile/delegation precedence evidence (§14).
+  A callback receives a separate `plz-<role>` invocation and prompt to read repo rules and its role file.
+  Missing/unsupported fields disable only that concrete native delivery, retain evidence and all pins,
+  and rerun resolution before any invocation. CLI selections use the existing shared runner; native
+  selections never reach the shell. Completed replies keep the one-line protocol; wait/cancel and raw
+  process classification remain outside this adapter. With no record sink, mismatch notices go to stderr.
 - `brief` executor mode (default): the brief verbatim; then, if `t ≥ 2`, a blank line, `## Findings (try <t-1>)`
   and the findings (§7) verbatim; then, if the rerun marker is present, a blank line and
   `Rerun: this try was interrupted; the tree may hold its partial edits. Continue from them.`; then a blank line

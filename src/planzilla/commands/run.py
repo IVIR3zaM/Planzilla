@@ -44,7 +44,9 @@ def run(args: argparse.Namespace) -> int:
     return _run(args.role, cli, name, effort, args.line)
 
 
-def run_selection(role: str, selection: Selection | Unavailable, line: str) -> int:
+def run_selection(
+    role: str, selection: Selection | Unavailable, line: str, cwd: str | None = None
+) -> int:
     """Execute a caller's resolved CLI selection using the same argv/reply lifecycle as `run`."""
     try:
         cli, name, effort = runner.validate_selection(role, selection, line)
@@ -52,17 +54,19 @@ def run_selection(role: str, selection: Selection | Unavailable, line: str) -> i
         return fail(str(error), 3)
     except ValueError as error:
         return fail(str(error), 2)
-    return _run(role, cli, name, effort, line)
+    return _run(role, cli, name, effort, line, cwd)
 
 
-def _run(role: str, cli: str, name: str, effort: str | None, line: str) -> int:
+def _run(
+    role: str, cli: str, name: str, effort: str | None, line: str, cwd: str | None = None
+) -> int:
     try:
         runner.require_cli(cli)
     except runner.UnsupportedSelection as error:
         return fail(str(error), 3)
     if shutil.which(cli) is None:
         return fail(f"{cli} not found on PATH", 3)
-    cwd = str(Path.cwd())
+    cwd = cwd if cwd is not None else str(Path.cwd())
     login = _call(runner.login_argv(cli), cli, cwd)
     if login is None:
         return fail(f"{cli} not found on PATH", 3)

@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from planzilla.plan import PUSH_ALIASES, Header, PlanError
+from planzilla.plan import PUSH_ALIASES, Header, Plan, PlanError
 from planzilla.providers import (
     HARNESS_ROUTES,
     HARNESSES,
@@ -92,6 +92,24 @@ def effective_policy(
             number = header.lines.get(key, 1)
             raise PlanError(file, number, f"bad models value {model!r}: {error}") from None
     return Policy(providers, models, header.harnesses)
+
+
+def plan_policy(config: Config, plan: Plan, *, actual_harness: str | None = None) -> Policy:
+    """Validate effective defaults and explicit plan restrictions before action or mutation.
+
+    Omitted policy keeps legacy Graph editing behavior; dispatch always resolves its request.
+    """
+    policy = effective_policy(config, plan.header, plan.graph_file, actual_harness=actual_harness)
+    if plan.header.providers is not None or plan.header.harnesses is not None or plan.header.models:
+        for node in plan.nodes:
+            for token in (node.exec_model, node.verify_model):
+                try:
+                    check_allowed(token, policy.providers)
+                except ValueError as error:
+                    raise PlanError(
+                        plan.graph_file, node.line or 1, f"{node.id} model {token}: {error}"
+                    ) from None
+    return policy
 
 
 def load_config(repo: Path) -> Config:

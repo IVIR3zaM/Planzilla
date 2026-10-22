@@ -6,6 +6,9 @@ verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 commit: per-node
 push: per-node
 budgets: 2 tries per brief · 2 replans per node
+harnesses: codex
+providers: codex
+models: planner=gpt-6.1-sol@high, exec=gpt-6.1-sol@high, verify=gpt-6.1-sol@high
 
 ## Decisions
 
@@ -32,10 +35,10 @@ budgets: 2 tries per brief · 2 replans per node
 | N05 | install Copilot custom agents | exec | N04,N06,N07 | codex/codex | 1 | 1 | DONE | |
 | N06 | implement conditional provider execution | exec | N04 | codex/codex | 1 | 1 | DONE | |
 | N07 | ship native dispatch and capability guidance | exec | N04 | codex/codex | 1 | 0 | DONE | |
-| N08 | fix Codex capability-aware dispatch | exec | N05,N06,N07 | codex/codex | 0 | 0 | TODO | |
-| N09 | clarify runner lifecycle and failure diagnostics | exec | N08 | codex/codex | 0 | 0 | TODO | |
-| N10 | integrate compatibility regressions and docs | exec | N09 | codex/codex | 0 | 0 | TODO | |
-| N11 | whole-plan acceptance | check | N10 | codex/codex | 0 | 0 | TODO | |
+| N08 | fix Codex capability-aware dispatch | exec | N05,N06,N07 | gpt-6.1-sol@high/gpt-6.1-sol@high | 2 | 2 | DONE | |
+| N09 | clarify runner lifecycle and failure diagnostics | exec | N08 | gpt-6.1-sol@high/gpt-6.1-sol@high | 0 | 0 | TODO | |
+| N10 | integrate compatibility regressions and docs | exec | N09 | gpt-6.1-sol@high/gpt-6.1-sol@high | 0 | 0 | TODO | |
+| N11 | whole-plan acceptance | check | N10 | -/gpt-6.1-sol@high | 0 | 0 | TODO | |
 
 ### Planned node scope
 

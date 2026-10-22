@@ -302,6 +302,21 @@ def parse_plan(text: str, path: Path, graph_file: Path) -> Plan:
     )
 
 
+def update_policy(plan: Plan, updates: dict[str, str], today: str) -> Plan:
+    """Replace supplied policy fields without rendering Graph, prose or unrelated headers."""
+    keys = ("harnesses", "providers", "models")
+    if not updates or any(key not in keys for key in updates):
+        raise PlanError(plan.graph_file, 1, "supply at least one policy field")
+    lines = plan.text.split("\n")
+    end = lines.index("")
+    existing = {key: lines[number - 1] for key, number in plan.header.lines.items() if key in keys}
+    existing.update({key: f"{key}: {value}" for key, value in updates.items()})
+    header = [line for line in lines[:end] if line.split(":", 1)[0] not in keys]
+    header[plan.header.lines["created"] - 1] = f"created: {plan.header.created} · updated: {today}"
+    text = "\n".join(header + [existing[key] for key in keys if key in existing] + lines[end:])
+    return parse_plan(text, plan.path, plan.graph_file)
+
+
 def _parse_header(lines: list[str], file: Path, single_file: bool) -> Header:
     values: dict[str, str] = {}
     numbers: dict[str, int] = {}
