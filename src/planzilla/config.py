@@ -5,7 +5,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from planzilla.plan import PUSH_ALIASES, Header, PlanError
-from planzilla.providers import HARNESSES, check_allowed, parse_models, parse_providers
+from planzilla.providers import (
+    HARNESS_ROUTES,
+    HARNESSES,
+    check_allowed,
+    parse_models,
+    parse_providers,
+)
 
 DEFAULT_MODELS = {"planner": "opus", "exec": "sonnet", "verify": "sonnet"}
 KEYS = (
@@ -47,20 +53,45 @@ class Config:
 class Policy:
     providers: tuple[str, ...]
     models: dict[str, str]
+    harnesses: tuple[str, ...] | None = None
 
 
-def effective_policy(config: Config, header: Header, file: Path | str) -> Policy:
+def effective_policy(
+    config: Config, header: Header, file: Path | str, *, actual_harness: str | None = None
+) -> Policy:
     """Compose supplied data only: plan routes replace, plan roles override individually."""
+    if (
+        header.harnesses is not None
+        and actual_harness is not None
+        and actual_harness not in header.harnesses
+    ):
+        raise PlanError(
+            file,
+            header.lines.get("harnesses", 1),
+            f"coordinator {actual_harness} is not in harnesses",
+        )
     providers = config.providers if header.providers is None else header.providers
+    original = providers
+    if header.harnesses is not None:
+        routes = tuple(HARNESS_ROUTES[h] for h in header.harnesses)
+        providers = tuple(p for p in providers if p in routes)
+        if not providers:
+            raise PlanError(
+                file,
+                header.lines.get("harnesses", 1),
+                "harnesses and providers have no allowed delivery",
+            )
     models = {**config.models, **header.models}
     for role, model in models.items():
         try:
             check_allowed(model, providers)
         except ValueError as error:
             key = "models" if role in header.models else "providers"
+            if role not in header.models and providers != original:
+                key = "harnesses"
             number = header.lines.get(key, 1)
             raise PlanError(file, number, f"bad models value {model!r}: {error}") from None
-    return Policy(providers, models)
+    return Policy(providers, models, header.harnesses)
 
 
 def load_config(repo: Path) -> Config:

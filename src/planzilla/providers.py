@@ -13,6 +13,7 @@ PORTABLE_ALIASES = ("opus", "sonnet", "haiku")
 MODEL_ROLES = ("planner", "exec", "verify")
 _CLAUDE_NAMES = ("opus", "sonnet", "haiku", "fable")
 HARNESSES = ("claude-code", "codex", "copilot")
+HARNESS_ROUTES = {"claude-code": "claude", "codex": "codex", "copilot": "copilot"}
 # Harness facts (FORMAT §14): models run natively (no `@<effort>`); has a visual agent.
 _NATIVE = {"claude-code": _CLAUDE_NAMES, "codex": (), "copilot": ()}
 _VISUAL_AGENT = {"claude-code": True, "codex": False, "copilot": False}
@@ -96,6 +97,13 @@ def parse_providers(value: str) -> tuple[str, ...]:
     names = tuple(part.strip() for part in value.split(","))
     if not value or any(name not in PROVIDERS for name in names) or len(set(names)) < len(names):
         raise ValueError(f"expected a comma-separated subset of {', '.join(PROVIDERS)}, no repeats")
+    return names
+
+
+def parse_harnesses(value: str) -> tuple[str, ...]:
+    names = tuple(part.strip() for part in value.split(","))
+    if any(name not in HARNESSES for name in names) or len(set(names)) < len(names):
+        raise ValueError(f"expected a comma-separated subset of {', '.join(HARNESSES)}, no repeats")
     return names
 
 

@@ -85,14 +85,15 @@ line, in this order (optional lines may be absent):
 | `push` | `per-node` · `none` (`yes`/`no` accepted) | no, default config `push` | planner (from config `push`) |
 | `budgets` | `<B> tries per brief · <R> replans per node` | no, default `2 tries per brief · 2 replans per node` | planner |
 | `tier` | `S` · `M` (single file only) | no, default M | planner |
+| `harnesses` | nonempty comma-separated subset of `claude-code`, `codex`, `copilot`, no repeats | no, legacy harness permissions | planner |
 | `providers` | nonempty comma-separated subset of `claude`, `codex`, `copilot`, no repeats | no, inherit repository providers | planner |
 | `models` | `planner=<m>, exec=<m>, verify=<m>` (any nonempty subset, no repeated roles) | no, inherit repository role defaults individually | planner |
 
 An unknown key, a missing required key or a bad value is a parse error. The CLI rewrites only the `status:` value
 and the `updated:` date, nothing else in the header.
 
-Optional policy lines follow `tier` (or the last present earlier header key), with `providers` before
-`models`. A plan's providers **replace** the repository list; they are never unioned with it. Merge models
+Optional policy lines follow `tier` (or the last present earlier header key), in order `harnesses`,
+`providers`, `models`. A plan's providers **replace** the repository list; they are never unioned with it. Merge models
 by role: explicit Graph tokens take precedence for their phase, then plan role defaults, then repository
 role defaults, then built-in defaults (§8). A Graph `-` still means an absent phase or the existing verify
 default rule (§9), rather than an exec-model override. Missing plan policy preserves existing behavior.
@@ -101,6 +102,18 @@ default is an error, never a reason to expand the plan's allowed routes. Explici
 to `models:`; an inherited default disabled by a plan restriction points to `providers:`.
 Empty policy fields, with or without a space after `:`, give the field-specific errors in §8. Header key
 ordering still applies; models-before-providers is an out-of-order header error, not an alternate spelling.
+
+`harnesses` restricts both the actual coordinator and every role's delivery, independently of configured
+`harness` and effective providers. Check actual coordinator membership before resolving defaults or aliases.
+Map delivery permissions `claude-code` → `claude`, `codex` → `codex`, `copilot` → `copilot`, then intersect
+with effective providers; never widen either list. Multiple entries permit listed cross-harness combinations.
+Omission adds no harness restriction and preserves legacy behavior. Empty, duplicate or unknown entries give
+`bad harnesses value '<v>': expected a comma-separated subset of claude-code, codex, copilot, no repeats`
+at that header line. A supplied disallowed coordinator gives `coordinator <h> is not in harnesses` there;
+an empty intersection gives `harnesses and providers have no allowed delivery`. Incompatible merged defaults
+remain errors; an inherited default disabled by the harness intersection points at `harnesses:`. These pure
+checks are reusable for planner/replanner, executor and verifier; dispatch enforcement and CLI persistence
+are separate integration work. This schema does not migrate an existing plan or change repository config.
 
 Plan status: DRAFT while any Decision is `proposed`; the planner sets READY once all are confirmed. From then on
 the CLI derives it after every write (`set`, `resume`), in this order:
@@ -691,7 +704,9 @@ without effort are native there; Codex and Copilot have no statically asserted n
 Legacy `plz run` supports Claude/Codex unqualified CLI tokens (§9); qualified/Copilot dispatch requires the
 later resolver/runner integration. Do not send a qualified token to a legacy prefix-based runner.
 
-Resolution receives data, never discovers tools or probes accounts itself:
+Resolution receives data, never discovers tools or probes accounts itself. Apply optional plan `harnesses`
+to the actual coordinator first and intersect delivery permissions with providers (§3), before defaults,
+aliases or capability selection. Configured/actual mismatch cannot bypass the allowlist:
 
 | supplied input | meaning |
 |----------------|---------|
@@ -701,6 +716,47 @@ Resolution receives data, never discovers tools or probes accounts itself:
 | delivery facts | opaque nonsecret delivery and credential/quota identities; independently established separation, shared identity or unknown |
 | availability facts | native callable support or demonstrated external entrypoint/reply usability; route-specific observed failures and their classification |
 | visual facts | usable navigation and snapshot/image operations on the selected surface, with evidence; absent or unknown means unavailable |
+
+The pure API is `resolver.resolve(policy, request, context, capabilities)` and
+`resolver.resolve_pair(policy, executor, reviewer, context, capabilities, independence)`. `Policy` holds
+effective providers, merged role defaults and optional harnesses. `effective_policy` can also receive
+`actual_harness` to reject the coordinator before composing defaults; resolver entry points always check it.
+`Request` keeps the original token (or `None` for a role default), role, low-effort permission and visual
+requirement. `Context` separates actual and configured harness. Planner/replanner and replan use planner
+defaults; executor/exec and verifier/verify use their respective defaults. Each selection requires a
+separate role invocation, including a verifier sharing a route with its executor.
+
+Each `Capability` describes one concrete route/mode/delivery, its supported `Model` records (exact ID,
+family, resolved aliases and efforts), enforceable model/effort controls, and evidence references. Native
+availability must be `callable_native` on the actual harness's route; CLI availability must be `external_reply`
+demonstrating an entrypoint and usable reply. A disabled record, absent evidence, catalog, executable-only,
+mock or unknown availability cannot enable delivery. Model/effort controls mean exposed enforceable fields
+or flags, never prompt assertions. `default_id`, when supplied, is an evidenced exact resolution of a bare
+CLI default into that capability's model records. A proven CLI default may omit a model control; explicit
+model selection and native delivery still require it. Every selected explicit or mapped effort needs a
+supported effort and an effort control. Low effort also requires the request's task-policy permission.
+Visual booleans represent demonstrated navigation and snapshot/image operations on this delivery's surface;
+both and nonempty visual evidence are required for a visual request.
+
+`Failure` is an already classified, evidenced observation attached only to that concrete capability:
+`missing_entrypoint`, `unsupported_selection`, `quota_exhausted`, `auth`, `permission`, or `unknown`.
+The resolver does no diagnostic parsing; generic exits, signals, silence and HTTP 429 without quota semantics
+must enter as `unknown`. Failed deliveries cannot be selected. Their classifications and evidence survive
+fallback; authentication recovery remains explicit even when another delivery succeeds.
+
+Opaque `delivery_id` and `quota_id` values are nonsecret canonical identities established by the caller.
+`quota_evidence` must establish the quota identity/separation, rather than just label different routes.
+`Independence(delivery=True)` requires different routes and different delivery identities;
+`Independence(quota=True)` requires distinct known canonical quotas with evidence for each. Unknown or
+shared quotas fail this requirement. Pair resolution searches the ordered candidate product so fallback
+retains every pin and both independence requirements. Without independence requirements, separate cold
+contexts may share a route; this supplies no claim of separate quotas.
+
+Selections retain original request, resolved intent, family, exact ID, effort, actual harness, route, mode,
+delivery/quota identity and evidence, pins, mismatch notices and classified failures. Unavailable results
+retain the operation/request, failed constraint, evidence, mismatch and focused recovery/constraint-change
+alternatives. Ordering prefers proven native selection on the actual harness, then effective provider order,
+then supplied capability/model order. Identical inputs produce identical results without input mutation.
 
 For identical supplied facts, selection and diagnostics are deterministic. Resolve both executor and
 reviewer when independence constrains the pair. Output either a supported selection (original intent,

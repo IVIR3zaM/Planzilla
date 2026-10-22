@@ -7,7 +7,13 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from planzilla.providers import check_allowed, check_token, parse_models, parse_providers
+from planzilla.providers import (
+    check_allowed,
+    check_token,
+    parse_harnesses,
+    parse_models,
+    parse_providers,
+)
 
 NODE_ID = r"N[0-9]{2,}[a-z]?"
 PLAN_NAME = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2})-([a-z0-9]+(?:-[a-z0-9]+)*)")
@@ -35,6 +41,7 @@ HEADER_KEYS = (
     "push",
     "budgets",
     "tier",
+    "harnesses",
     "providers",
     "models",
 )
@@ -103,6 +110,7 @@ class Header:
     lines: dict[str, int] = field(default_factory=dict, compare=False)
     providers: tuple[str, ...] | None = None
     models: dict[str, str] = field(default_factory=dict)
+    harnesses: tuple[str, ...] | None = None
 
 
 @dataclass
@@ -346,12 +354,15 @@ def _parse_header(lines: list[str], file: Path, single_file: bool) -> Header:
     if tier is not None and (not single_file or tier not in ("S", "M")):
         raise bad("tier")
     providers = None
+    harnesses = None
     models: dict[str, str] = {}
-    for key in ("providers", "models"):
+    for key in ("harnesses", "providers", "models"):
         if key not in values:
             continue
         try:
-            if key == "providers":
+            if key == "harnesses":
+                harnesses = parse_harnesses(values[key])
+            elif key == "providers":
                 providers = parse_providers(values[key])
             else:
                 models = parse_models(values[key])
@@ -381,6 +392,7 @@ def _parse_header(lines: list[str], file: Path, single_file: bool) -> Header:
         lines=numbers,
         providers=providers,
         models=models,
+        harnesses=harnesses,
     )
 
 

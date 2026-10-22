@@ -64,6 +64,30 @@ def policy_plan(policy: str = "", model: str = "opus/-") -> Plan:
     return parse_plan(text, Path("policy.md"), Path("policy.md"))
 
 
+@pytest.mark.parametrize("value", ["codex", "claude-code, codex, copilot"])
+def test_plan_harness_allowlist(value: str) -> None:
+    plan = policy_plan(f"harnesses: {value}\nproviders: codex\nmodels: planner=opus\n")
+    assert plan.header.harnesses == tuple(value.split(", "))
+    assert render_graph(plan) == plan.text
+
+
+def test_absent_harness_allowlist_is_legacy() -> None:
+    assert policy_plan().header.harnesses is None
+
+
+@pytest.mark.parametrize("value", ["", " ", "claude", "codex,", "copilot, copilot"])
+def test_bad_harness_allowlist_reports_field(value: str) -> None:
+    with pytest.raises(PlanError, match="bad harnesses value") as error:
+        policy_plan(f"harnesses: {value}\n")
+    assert error.value.line == 7
+    assert "no repeats" in error.value.message
+
+
+def test_harnesses_precede_providers_and_models() -> None:
+    with pytest.raises(PlanError, match="header key out of order: harnesses"):
+        policy_plan("providers: codex\nharnesses: codex\n")
+
+
 @pytest.mark.parametrize(
     "cell",
     [
