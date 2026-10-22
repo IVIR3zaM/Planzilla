@@ -2,6 +2,8 @@
 
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -72,6 +74,51 @@ def test_config_template_parses_to_the_documented_defaults(repo: Path) -> None:
     loaded = config.load_config(repo)
     assert (loaded.commit, loaded.push, loaded.retention) == ("per-node", "none", "keep")
     assert loaded.models == {"planner": "opus", "exec": "sonnet", "verify": "sonnet"}
+
+
+def test_installed_copilot_profiles_and_reinstall_preserve_user_files(repo: Path) -> None:
+    """Exercise the installed launcher's reinstall, reusing profile schema unit coverage."""
+    user = {
+        ".plan/config.md": b"harness: codex\nproviders: codex\n",
+        ".github/copilot-instructions.md": b"repository instructions\n",
+        ".github/workflows/check.yml": b"user workflow\n",
+        ".github/agents/mine.agent.md": b"user profile\n",
+        ".github/agents/nested/plz-mine.agent.md": b"nested user profile\n",
+        ".github/agents/plz-mine.md": b"different suffix\n",
+    }
+    for rel, data in user.items():
+        path = repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    installed = Cli(repo)("install", "--target", str(repo))
+    assert installed.code == 0, installed.err
+    profiles = repo / ".github/agents"
+    assert {p.name for p in profiles.glob("plz-*.agent.md")} == {
+        f"plz-{role}.agent.md" for role in ("planner", "executor", "verifier")
+    }
+    for role in ("planner", "executor", "verifier"):
+        relative = f"agents/copilot/plz-{role}.agent.md"
+        assert (profiles / f"plz-{role}.agent.md").read_bytes() == (
+            repo / ".planzilla/lib/planzilla/kit" / relative
+        ).read_bytes()
+        assert (repo / f".planzilla/roles/{role}.md").is_file()
+    retired = profiles / "plz-retired.agent.md"
+    retired.write_text("owned retired profile\n")
+
+    def reinstall() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(repo / ".planzilla/plz"), "install", "--target", str(repo)],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+        )
+
+    result = reinstall()
+    assert result.returncode == 0 and result.stdout.endswith("0 added, 0 changed, 1 removed\n")
+    assert not retired.exists()
+    result = reinstall()
+    assert result.returncode == 0 and result.stdout.endswith("0 added, 0 changed, 0 removed\n")
+    assert {rel: (repo / rel).read_bytes() for rel in user} == user
 
 
 def test_this_plan_passes_status_and_lint_in_a_copy(tmp_path: Path) -> None:
