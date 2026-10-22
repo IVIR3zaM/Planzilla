@@ -157,4 +157,40 @@ def last_line(text: str) -> str:
 
 def exit_message(cli: str, code: int, stdout: str, stderr: str) -> str:
     detail = last_line(stderr) or last_line(stdout)
-    return f"{cli} exited {code}: {detail}" if detail else f"{cli} exited {code}"
+    status = f"terminated by signal {-code}" if code < 0 else f"exited {code}"
+    message = f"{cli} {status}"
+    return f"{message}: {detail}" if detail else message
+
+
+def login_failure_message(cli: str, code: int, stdout: str, stderr: str) -> str:
+    """Failed status execution is not itself evidence that authentication is absent."""
+    require_cli(cli)
+    detail = last_line(stderr) or last_line(stdout)
+    if code != 0:
+        message = exit_message(f"{cli} login check", code, stdout, stderr)
+        if cli == "codex" and code > 0 and detail.lower() == "not logged in":
+            return f"{message}; {login_hint(cli)}"
+        return message
+    if cli == "claude":
+        try:
+            data = json.loads(stdout)
+        except ValueError:
+            data = None
+        if isinstance(data, dict) and data.get("loggedIn") is False:
+            return login_hint(cli)
+    message = f"{cli} login check returned invalid authentication status"
+    return f"{message}: {detail}" if detail else message
+
+
+def launch_message(cli: str, phase: str, missing: bool, detail: str) -> str:
+    if missing:
+        return f"{cli} not found on PATH"
+    message = f"{cli} {phase} launch failed"
+    detail = last_line(detail)
+    return f"{message}: {detail}" if detail else message
+
+
+def reply_read_message(cli: str, detail: str) -> str:
+    message = f"{cli} reply read failed"
+    detail = last_line(detail)
+    return f"{message}: {detail}" if detail else message

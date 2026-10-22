@@ -129,13 +129,13 @@ def test_codex_output_dir_is_removed_on_failure(capsys, fake):
     assert fake.out_dir is not None and not fake.out_dir.exists()
 
 
-def test_codex_missing_output_file_is_an_empty_reply(capsys, fake):
+def test_codex_missing_output_file_reports_read_failure(capsys, fake):
     fake.reply = None
-    assert call(capsys, "executor", "gpt-6-luna", LINE) == (
-        3,
-        "",
-        "error: codex gave an empty reply\n",
-    )
+    code, out, err = call(capsys, "executor", "gpt-6-luna", LINE)
+    assert (code, out) == (3, "")
+    assert err.startswith("error: codex reply read failed: ")
+    assert "No such file" in err and err.count("\n") == 1
+    assert fake.out_dir is not None and not fake.out_dir.exists()
 
 
 def test_claude_success_prints_the_last_stdout_line(capsys, fake):
@@ -172,16 +172,17 @@ def test_which_asks_for_the_provider_cli(capsys, fake, monkeypatch):
 
 
 def test_codex_not_logged_in(capsys, fake):
-    fake.login = (1, "", "")
+    fake.login = (1, "", "Not logged in")
     assert call(capsys, "planner", "gpt-6-luna", LINE) == (
         3,
         "",
-        "error: codex is not logged in; run codex login\n",
+        "error: codex login check exited 1: Not logged in; "
+        "codex is not logged in; run codex login\n",
     )
     assert len(fake.calls) == 1
 
 
-@pytest.mark.parametrize("stdout", ['{"loggedIn": false}', "oops", "{}"])
+@pytest.mark.parametrize("stdout", ['{"loggedIn": false}'])
 def test_claude_not_logged_in(capsys, fake, stdout):
     fake.login = (0, stdout, "")
     assert call(capsys, "planner", "haiku", LINE) == (
@@ -192,9 +193,13 @@ def test_claude_not_logged_in(capsys, fake, stdout):
     assert len(fake.calls) == 1
 
 
-def test_claude_login_nonzero_exit_is_not_logged_in(capsys, fake):
+def test_claude_login_nonzero_exit_is_a_failed_check(capsys, fake):
     fake.login = (1, '{"loggedIn": true}', "")
-    assert call(capsys, "planner", "haiku", LINE)[2].startswith("error: claude is not logged in")
+    assert call(capsys, "planner", "haiku", LINE) == (
+        3,
+        "",
+        'error: claude login check exited 1: {"loggedIn": true}\n',
+    )
 
 
 @pytest.mark.parametrize(("model", "cli_name"), [("gpt-6-luna", "codex"), ("haiku", "claude")])
@@ -260,6 +265,142 @@ def resolved_selection(token: str, route: str = "codex", mode: str = "cli") -> r
     )
     assert isinstance(result, resolver.Selection)
     return result
+
+
+def invoke_entrypoint(
+    capsys: pytest.CaptureFixture[str], entrypoint: str, route: str
+) -> tuple[int, str, str]:
+    token = f"{route}::{'gpt-6.1-sol' if route == 'codex' else 'claude-sonnet-5'}@high"
+    if entrypoint == "direct":
+        return call(capsys, "executor", token, LINE)
+    code = run_module.run_selection("executor", resolved_selection(token, route), LINE)
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+@pytest.mark.parametrize("entrypoint", ["direct", "resolved"])
+@pytest.mark.parametrize("route", ["codex", "claude"])
+@pytest.mark.parametrize("phase", ["login check", "execution"])
+@pytest.mark.parametrize(
+    ("error_type", "detail"),
+    [
+        (FileNotFoundError, "missing"),
+        (PermissionError, "permission denied"),
+        (OSError, "other failure"),
+    ],
+)
+def test_launch_failures_preserve_phase_and_observation(
+    capsys: pytest.CaptureFixture[str],
+    fake: Fake,
+    monkeypatch: pytest.MonkeyPatch,
+    entrypoint: str,
+    route: str,
+    phase: str,
+    error_type: type[OSError],
+    detail: str,
+) -> None:
+    out_dirs: list[Path] = []
+
+    def launch(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        is_login = argv[1:3] in (["login", "status"], ["auth", "status"])
+        if phase == "login check" or not is_login:
+            if "-o" in argv:
+                out_dirs.append(Path(argv[argv.index("-o") + 1]).parent)
+            raise error_type(detail)
+        return fake(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", launch)
+    code, out, err = invoke_entrypoint(capsys, entrypoint, route)
+    expected = (
+        f"{route} not found on PATH"
+        if error_type is FileNotFoundError
+        else f"{route} {phase} launch failed: {detail}"
+    )
+    assert (code, out, err) == (3, "", f"error: {expected}\n")
+    assert all(not path.exists() for path in out_dirs)
+
+
+@pytest.mark.parametrize("entrypoint", ["direct", "resolved"])
+@pytest.mark.parametrize("route", ["codex", "claude"])
+@pytest.mark.parametrize("phase", ["login check", "execution"])
+@pytest.mark.parametrize("status", [-15, -9, 7])
+def test_failed_children_report_status_without_inventing_auth_or_quota(
+    capsys: pytest.CaptureFixture[str],
+    fake: Fake,
+    entrypoint: str,
+    route: str,
+    phase: str,
+    status: int,
+) -> None:
+    observation = (status, "fallback", "first\nHTTP 429\n")
+    if phase == "login check":
+        fake.login = observation
+    else:
+        fake.main = observation
+    code, out, err = invoke_entrypoint(capsys, entrypoint, route)
+    label = f"{route} login check" if phase == "login check" else route
+    status_text = f"terminated by signal {-status}" if status < 0 else f"exited {status}"
+    assert (code, out, err) == (3, "", f"error: {label} {status_text}: HTTP 429\n")
+    assert len(fake.calls) == (1 if phase == "login check" else 2)
+    if fake.out_dir is not None:
+        assert not fake.out_dir.exists()
+
+
+@pytest.mark.parametrize("stdout", ["oops", "{}", "[]", '{"loggedIn": "false"}'])
+def test_invalid_auth_status_is_not_logout(
+    capsys: pytest.CaptureFixture[str],
+    fake: Fake,
+    stdout: str,
+) -> None:
+    fake.login = (0, stdout, "status detail")
+    assert call(capsys, "executor", "haiku", LINE) == (
+        3,
+        "",
+        "error: claude login check returned invalid authentication status: status detail\n",
+    )
+    assert len(fake.calls) == 1
+
+
+@pytest.mark.parametrize("entrypoint", ["direct", "resolved"])
+@pytest.mark.parametrize("failure", ["missing", "unreadable", "empty", "success"])
+def test_reply_lifecycle_preserves_read_failure_and_cleans_up(
+    capsys: pytest.CaptureFixture[str],
+    fake: Fake,
+    monkeypatch: pytest.MonkeyPatch,
+    entrypoint: str,
+    failure: str,
+) -> None:
+    fake.reply = {"missing": None, "empty": " \n", "success": "PASS N01\n"}.get(failure, "reply")
+    read_text = Path.read_text
+
+    def read(path: Path, *args: object, **kwargs: object) -> str:
+        if path.name == "reply.txt" and failure == "unreadable":
+            raise PermissionError("read denied\nobserved detail")
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read)
+    code, out, err = invoke_entrypoint(capsys, entrypoint, "codex")
+    if failure == "success":
+        assert (code, out, err) == (0, "PASS N01\n", "")
+    elif failure == "empty":
+        assert (code, out, err) == (3, "", "error: codex gave an empty reply\n")
+    else:
+        assert (code, out) == (3, "")
+        assert err.startswith("error: codex reply read failed: ") and err.count("\n") == 1
+        assert ("No such file" if failure == "missing" else "observed detail") in err
+    assert fake.out_dir is not None and not fake.out_dir.exists()
+
+
+def test_each_role_owns_a_distinct_temporary_reply_directory(
+    capsys: pytest.CaptureFixture[str],
+    fake: Fake,
+) -> None:
+    directories: list[Path] = []
+    for role in ("planner", "executor", "verifier"):
+        assert call(capsys, role, "gpt-6.1-sol@high", LINE) == (0, "PASS N01\n", "")
+        assert fake.out_dir is not None and not fake.out_dir.exists()
+        directories.append(fake.out_dir)
+    assert len(set(directories)) == 3
 
 
 @pytest.mark.parametrize(

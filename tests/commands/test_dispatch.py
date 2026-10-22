@@ -496,8 +496,12 @@ def test_mismatch_is_visible_without_record_sink(
     assert "configured claude-code; actual codex" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("outcome", ["success", "exit", "signal", "missing", "unreadable", "empty"])
 def test_dispatch_cli_uses_plan_repository_and_exact_tuple(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    outcome: str,
 ) -> None:
     import shutil
     import subprocess
@@ -508,19 +512,32 @@ def test_dispatch_cli_uses_plan_repository_and_exact_tuple(
     plan = make_l(root, [row("N01", "RUNNING", model=f"codex::{PIN}/{PIN}")], extra=POLICY)
     monkeypatch.chdir(tmp_path)
     fake = Fake()
+    if outcome in ("exit", "signal"):
+        fake.main = (7 if outcome == "exit" else -9, "fallback", "observed detail")
+    if outcome in ("missing", "empty"):
+        fake.reply = None if outcome == "missing" else " \n"
+    read_text = Path.read_text
+
+    def read(path: Path, *args: object, **kwargs: object) -> str:
+        if path.name == "reply.txt" and outcome == "unreadable":
+            raise PermissionError("read denied")
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read)
     monkeypatch.setattr(subprocess, "run", fake)
     lookups: list[str] = []
+    selections: list[resolver.Selection | resolver.Unavailable] = []
     monkeypatch.setattr(shutil, "which", lambda name: lookups.append(name) or f"/bin/{name}")
-    assert (
-        host.dispatch(
-            str(plan),
-            resolver.Request("executor"),
-            LINE,
-            actual_harness="codex",
-            capabilities=(capability("claude", "cli"), capability(mode="cli")),
-        )
-        == 0
-    )
+    assert host.dispatch(
+        str(plan),
+        resolver.Request("executor"),
+        LINE,
+        actual_harness="codex",
+        capabilities=(capability("claude", "cli"), capability(mode="cli")),
+        record=selections.append,
+    ) == (0 if outcome == "success" else 3)
+    assert len(selections) == 1 and isinstance(selections[0], resolver.Selection)
+    assert selections[0].mismatch
     assert lookups == ["codex"]
     login, main = fake.calls
     assert login[0] == ["codex", "login", "status"]
@@ -529,4 +546,17 @@ def test_dispatch_cli_uses_plan_repository_and_exact_tuple(
     assert argv[argv.index("-C") + 1] == str(root)
     assert kwargs["cwd"] == str(root)
     assert f"Input: {LINE}" in kwargs["input"]
-    assert capsys.readouterr().out == "PASS N01\n"
+    captured = capsys.readouterr()
+    assert fake.out_dir is not None and not fake.out_dir.exists()
+    if outcome == "success":
+        assert (captured.out, captured.err) == ("PASS N01\n", "")
+    else:
+        assert captured.out == "" and captured.err.count("\n") == 1
+        expected = {
+            "exit": "codex exited 7: observed detail",
+            "signal": "codex terminated by signal 9: observed detail",
+            "missing": "codex reply read failed: ",
+            "unreadable": "codex reply read failed: read denied",
+            "empty": "codex gave an empty reply",
+        }[outcome]
+        assert captured.err.startswith(f"error: {expected}")

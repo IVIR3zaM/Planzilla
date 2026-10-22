@@ -18,9 +18,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _call(
-    argv: list[str], cli: str, cwd: str, prompt: str | None = None
+    argv: list[str], cli: str, cwd: str, phase: str, prompt: str | None = None
 ) -> subprocess.CompletedProcess[str] | None:
-    """`subprocess.run` with captured text; a missing binary is reported as not on PATH."""
+    """Capture a completed child or report the observed failure to launch this phase."""
     try:
         return subprocess.run(
             argv,
@@ -30,7 +30,9 @@ def _call(
             errors="replace",
             cwd=cwd,
         )
-    except OSError:
+    except OSError as error:
+        missing = isinstance(error, FileNotFoundError) and error.filename != cwd
+        fail(runner.launch_message(cli, phase, missing, str(error)), 3)
         return None
 
 
@@ -67,20 +69,22 @@ def _run(
     if shutil.which(cli) is None:
         return fail(f"{cli} not found on PATH", 3)
     cwd = cwd if cwd is not None else str(Path.cwd())
-    login = _call(runner.login_argv(cli), cli, cwd)
+    login = _call(runner.login_argv(cli), cli, cwd, "login check")
     if login is None:
-        return fail(f"{cli} not found on PATH", 3)
+        return 3
     if not runner.logged_in(cli, login.returncode, login.stdout):
-        return fail(runner.login_hint(cli), 3)
+        return fail(
+            runner.login_failure_message(cli, login.returncode, login.stdout, login.stderr), 3
+        )
 
     prompt = runner.build_prompt(role, line)
     out_dir = tempfile.mkdtemp(prefix="plz-run-") if cli == "codex" else None
     try:
         out_file = str(Path(out_dir) / "reply.txt") if out_dir else None
         argv = runner.build_argv(role, cli, name, effort, cwd, out_file)
-        result = _call(argv, cli, cwd, prompt)
+        result = _call(argv, cli, cwd, "execution", prompt)
         if result is None:
-            return fail(f"{cli} not found on PATH", 3)
+            return 3
         if result.returncode != 0:
             return fail(
                 runner.exit_message(cli, result.returncode, result.stdout, result.stderr), 3
@@ -90,8 +94,8 @@ def _run(
         else:
             try:
                 text = Path(out_file).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                text = ""
+            except OSError as error:
+                return fail(runner.reply_read_message(cli, str(error)), 3)
     finally:
         if out_dir:
             shutil.rmtree(out_dir, ignore_errors=True)

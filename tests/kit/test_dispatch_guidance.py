@@ -31,6 +31,35 @@ def test_both_workflows_use_the_identical_dispatch_contract() -> None:
     assert section(SKILLS[0], "Dispatch contract") == section(SKILLS[1], "Dispatch contract")
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "skills/plz-new-plan/SKILL.md",
+        "skills/plz-run-plan/SKILL.md",
+        "agents/claude/plz-run.md",
+    ],
+)
+def test_external_job_lifecycle_keeps_quiet_pending_jobs_and_owned_evidence(path: str) -> None:
+    require(
+        read(path),
+        "supported owned job handle",
+        "at most 5 minutes per call, shorter where required",
+        "quiet pending job",
+        "continue waiting",
+        "silence is not a hang",
+        "explicit stop/cancel or demonstrated need",
+        "cancel only the owned job",
+        "never kill by broad process matching",
+        "output, error and observed completion status",
+        "extraction or cancellation is confirmed",
+        "then clean up",
+        "never delete live-job evidence",
+        "no automatic execution deadline",
+        "interruption does not consume a node retry",
+        "resume uses existing plan state",
+    )
+
+
 @pytest.mark.parametrize("name", SKILLS)
 def test_actual_codex_configured_claude_uses_evidence_and_enforceable_pins(name: str) -> None:
     dispatch = section(name, "Dispatch contract")

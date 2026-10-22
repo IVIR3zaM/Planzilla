@@ -583,10 +583,27 @@ Details:
     --tools <T> --allowedTools <T> --permission-mode dontAsk`; the reply is stdout. `<T>` per role: planner
     `Read,Grep,Glob,Write,Edit,Bash`; executor `Read,Grep,Glob,Edit,Write,Bash`; verifier `Read,Grep,Glob,Bash`.
   The reply is the last non-blank line of the output, stripped, printed alone to stdout (exit 0); an empty
-  output is `error: <cli> gave an empty reply`. Exit 3 messages: `error: <cli> not found on PATH`,
-  `error: <cli> is not logged in; run codex login` (claude: `claude auth login`) and
-  `error: <cli> exited <code>[: <last non-blank stderr line, else stdout line>]`. Billing goes to the plan or
-  account the CLI is logged in to.
+  output is `error: <cli> gave an empty reply`. External failures exit 3, print exactly one `error: …`
+  line to stderr and no reply to stdout. Diagnostics report observations, never inferred quota exhaustion,
+  cancellation actor or termination cause:
+  - Missing executable: `error: <cli> not found on PATH`. Other launch failures, including permission denial
+    or a missing working directory: `error: <cli> <phase> launch failed[: <observed error detail>]`, where
+    phase is `login check` or `execution`.
+  - Nonzero child status: `error: <cli> exited <code>[: <detail>]`; negative subprocess return codes report
+    `error: <cli> terminated by signal <positive signal number>[: <detail>]`. Login-check failures use
+    `<cli> login check` in place of `<cli>`. Detail prefers the last non-blank stderr line, then stdout.
+    A signal proves termination by that signal, not who sent it or why.
+  - Failed status execution alone is not logout evidence. An explicit Codex `Not logged in` detail on an
+    ordinary nonzero login-check exit appends `; codex is not logged in; run codex login` to its diagnostic.
+    A successful Claude status operation with JSON `loggedIn: false` reports
+    `error: claude is not logged in; run claude auth login`. Invalid/missing Claude authentication status
+    reports `error: claude login check returned invalid authentication status[: <detail>]`.
+    Recovery hints require established authentication failure; generic exits and signals give none.
+  - Missing or unreadable Codex reply files: `error: codex reply read failed[: <observed error detail>]`.
+    This differs from a successfully read but empty reply. Error detail is reduced to its last non-blank
+    line. Per-role temporary reply directories are removed on success and failure.
+  This lifecycle also applies to resolved CLI dispatch; supported argv, model/effort/route pins, role input
+  and legacy direct-run selection remain unchanged. Billing goes to the plan or account the CLI is logged in to.
 - `check`: runs each `[cmd]` criterion with `sh -c` from the repo root, in criterion order, all of them even after
   a failure, each with a 900 s timeout (timeout = fail, exit shown as `timeout`); writes the log entry and
   evidence (§7). It never changes the Graph. A node with no `[cmd]` criteria prints `<id> check PASS 0/0`.
@@ -885,8 +902,16 @@ argv tests. Honor host permissions; never add approval/sandbox bypass flags.
 
 `plz-visual` requires the proven visual surface and never goes through a text-only `plz run`. A supported
 external dispatch uses the named role's one-line input and relays its final reply; an `error: …` line is a
-crash. Wait using the supported job handle and host limits, preserving pending/completed/failed/cancellation
-observations without inventing a hang. A line no route can dispatch stops with
+crash. Retain a supported owned job handle and per-role temporary output/error/status. Wait within host
+limits (at most five minutes per call, shorter where required); continue waiting while a quiet job is
+pending. Silence is not a hang; wait-call limits introduce no automatic execution deadline. Cancel only
+on explicit stop/cancel or demonstrated need, target only the owned job through supported host controls,
+and never kill by broad process matching. Retain output, error and observed completion status until reply
+extraction or cancellation is confirmed, then clean up only that job's temporary directory. Never delete
+live-job evidence; retain the handle and evidence while cancellation is unconfirmed. Do not introduce
+streaming logs or a process supervisor. An interruption does not consume a node retry; resume uses
+existing plan state through `resume` before continuing. Preserve pending/completed/failed/cancellation
+observations without inventing a cause. A line no route can dispatch stops with
 `<id>: cannot dispatch <agent> <m>` plus the focused constraint handoff. A batch may mix proven native and CLI
 routes. Executable presence, catalog entries and controlled mocks never prove live reachability or quota.
 

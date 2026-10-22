@@ -219,6 +219,15 @@ def test_exit_message_prefers_stderr_then_stdout():
     assert runner.exit_message("claude", 1, "", "") == "claude exited 1"
 
 
+def test_signal_message_reports_only_observed_signal_and_detail() -> None:
+    assert runner.exit_message("codex", -15, "out", "detail") == (
+        "codex terminated by signal 15: detail"
+    )
+    assert runner.exit_message("claude login check", -9, "", "") == (
+        "claude login check terminated by signal 9"
+    )
+
+
 @pytest.mark.parametrize(
     ("token", "route", "name", "effort"),
     [
