@@ -1,6 +1,8 @@
 """Codex-only lifecycle across planner phases, execution, retries and cold review."""
 
+import json
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import asdict
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -140,6 +142,7 @@ def _check_installed_graph_lifecycle(root: Path) -> None:
     """Run in an isolated interpreter importing the freshly installed package."""
     assert Path(host.__file__).resolve().is_relative_to(root / ".planzilla/lib")
     _check_initial_planning_boundary(root)
+    _check_installed_completed_history(root / "history-fixture")
     medium_pair = f"gpt-6.1-sol@medium/{PIN}"
     plan = make_l(
         root,
@@ -343,3 +346,91 @@ def test_codex_policy_survives_every_lifecycle_phase(
     assert config.read_bytes() == original
     assert all(record.route == "codex" and record.exact_id == "gpt-6.1-sol" for record in records)
     assert [call["task_name"] for call in calls].count("plz-verifier") == 2
+
+
+def _check_installed_completed_history(root: Path) -> None:
+    """Host-owned JSON retention survives resume; fixtures never establish live access."""
+    pin = f"codex::{PIN}"
+    plan = make_l(
+        root,
+        [row("N01", "RUNNING", model=f"{pin}/{pin}")],
+        {"N01": brief("N01", "review")},
+        extra=POLICY,
+    )
+    records: list = []
+    calls: list = []
+    original = capability(quota_id="A", quota_evidence=("fixture:quota-A",))
+    excluded = capability("claude", "cli", quota_id="B", quota_evidence=("fixture:quota-B",))
+    with (
+        patch("subprocess.run", side_effect=AssertionError("unexpected provider call")),
+        patch("shutil.which", side_effect=AssertionError("unexpected executable probe")),
+        patch.object(host.runner, "require_cli") as probes,
+        redirect_stdout(StringIO()),
+        redirect_stderr(StringIO()) as errors,
+    ):
+        code = host.dispatch(
+            str(plan),
+            resolver.Request("executor"),
+            LINE,
+            actual_harness="codex",
+            capabilities=(original, excluded),
+            adapters=(adapter(calls),),
+            record=records.append,
+        )
+        assert code == 0
+        assert not probes.called
+        # Only a successful executor's record is retained; prospective pairs are not attestations.
+        retained = root / "host-completed.json"
+        retained.write_text(json.dumps(asdict(records[0])))
+        assert cli.main(["set", str(plan), "N01", "VERIFYING"]) == 0
+        with patch("planzilla.commands.resume.uncommitted", return_value=True):
+            assert cli.main(["resume", str(plan)]) == 0
+        data = json.loads(retained.read_text())
+        data["pins"] = resolver.Pins(**data["pins"])
+        data["failures"] = tuple(
+            resolver.Failure(f["reason"], tuple(f["evidence"])) for f in data["failures"]
+        )
+        for key in ("evidence", "quota_evidence", "visual_evidence", "notices"):
+            data[key] = tuple(data[key])
+        completed = resolver.Selection(**data)
+        assert completed == records[0]
+        assert completed.original == pin
+        assert completed.pins == resolver.Pins("gpt-6.1-sol", "high", "codex")
+        before = {p: p.read_bytes() for p in plan.rglob("*") if p.is_file()}
+        current = capability(mode="cli", quota_id="A", quota_evidence=("fixture:quota-A",))
+        launched: list = []
+        with patch.object(
+            host.run_command, "run_selection", side_effect=lambda *args: launched.append(args) or 0
+        ):
+            common = dict(
+                actual_harness="codex",
+                capabilities=(current, excluded),
+                reviewer=resolver.Request("verifier"),
+                review_line=LINE,
+                review=True,
+                completed_execution=completed,
+            )
+            for independence in (
+                resolver.Independence(quota=True),
+                resolver.Independence(delivery=True),
+            ):
+                assert (
+                    host.dispatch(
+                        str(plan),
+                        resolver.Request("executor"),
+                        LINE,
+                        independence=independence,
+                        **common,
+                    )
+                    == 3
+                ), errors.getvalue()
+            assert not launched
+            # Ordinary cold review remains allowed, with no quota separation claim.
+            assert host.dispatch(str(plan), resolver.Request("executor"), LINE, **common) == 0
+        assert [args[0] for args in launched] == ["verifier"]
+        assert launched[0][1].pins == completed.pins
+        assert launched[0][1].quota_id == completed.quota_id
+        assert completed.delivery_id == "codex-native"
+        assert all(call.args == ("codex",) for call in probes.call_args_list)
+        assert {p: p.read_bytes() for p in plan.rglob("*") if p.is_file()} == before
+        assert retained.read_text() == json.dumps(asdict(completed))

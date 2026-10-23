@@ -273,3 +273,29 @@ def test_workflows_use_supported_policy_and_callable_dispatch(name: str) -> None
         "review=True",
     )
     require(section(name, "Phase policy"), "plz policy", "--harnesses", "--providers", "--models")
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_review_and_resume_require_host_retained_successful_execution(name: str) -> None:
+    require(
+        section(name, "Dispatch contract"),
+        "completed_execution",
+        "only after executor success",
+        "prospective pair records",
+        "host-owned",
+        "resume",
+        "fixed history",
+        "missing evidence",
+    )
+    assert "resolve the pair again" not in section(name, "Dispatch contract")
+
+
+def test_planner_requires_completed_execution_history() -> None:
+    require(
+        read("roles/planner.md"),
+        "completed_execution",
+        "executor success",
+        "resume",
+        "prospective pair",
+        "missing evidence",
+    )

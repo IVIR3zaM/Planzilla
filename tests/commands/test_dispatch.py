@@ -223,6 +223,7 @@ def test_native_only_copilot_uses_supplied_schema_and_separate_review(
             reviewer=resolver.Request("verifier", "copilot::opus@high"),
             review_line=LINE,
             review=True,
+            completed_execution=records[0],
         )
         == 0
     )
@@ -271,6 +272,7 @@ def test_pair_fallback_retains_deliberate_independence(
         fixed={},
     )
     launched: list = []
+    records: list = []
     monkeypatch.setattr(run_cmd, "run_selection", lambda *args: launched.append(args) or 0)
     failed = capability(
         "claude",
@@ -291,6 +293,7 @@ def test_pair_fallback_retains_deliberate_independence(
             LINE,
             actual_harness="copilot",
             capabilities=(failed, good, review),
+            record=records.append,
             adapters=(native,),
             reviewer=resolver.Request("verifier", "copilot::claude-opus-5@high"),
             review_line=LINE,
@@ -316,6 +319,7 @@ def test_pair_fallback_retains_deliberate_independence(
                 review_line=LINE,
                 independence=resolver.Independence(delivery=True, quota=True),
                 review=True,
+                completed_execution=records[0],
             )
             == 0
         )
@@ -504,7 +508,14 @@ def test_pair_selection_does_not_launch_review_before_state_transition(tmp_path:
         reviewer=resolver.Request("verifier"),
         review_line=LINE,
     )
-    assert host.dispatch(str(plan), resolver.Request("executor"), LINE, **common) == 0
+    records: list = []
+    assert (
+        host.dispatch(
+            str(plan), resolver.Request("executor"), LINE, record=records.append, **common
+        )
+        == 0
+    )
+    common["completed_execution"] = records[0]
     assert [c["task_name"] for c in calls] == ["plz-executor"]
     assert host.dispatch(str(plan), resolver.Request("executor"), LINE, review=True, **common) == 2
     assert len(calls) == 1
@@ -642,3 +653,160 @@ def test_dispatch_cli_uses_plan_repository_and_exact_tuple(
             "empty": "codex gave an empty reply",
         }[outcome]
         assert captured.err.startswith(f"error: {expected}")
+
+
+@pytest.mark.parametrize("delivery", [False, True])
+def test_review_cannot_replace_completed_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, delivery: bool
+) -> None:
+    plan = make_l(
+        tmp_path,
+        [row("N01", "RUNNING", model="opus@high/codex::opus@high")],
+        extra="harnesses: codex,claude-code\nproviders: codex,claude\n",
+    )
+    calls: list[dict[str, str]] = []
+    records: list = []
+    original = capability(quota_id="A", quota_evidence=("fixture:quota-A",))
+    assert (
+        host.dispatch(
+            str(plan),
+            resolver.Request("executor"),
+            LINE,
+            actual_harness="codex",
+            capabilities=(original,),
+            adapters=(adapter(calls),),
+            record=records.append,
+        )
+        == 0
+    )
+    completed = records[0]  # The host retains this only after invocation returned success.
+    assert completed.delivery_id == "codex-native"
+    (plan / "plan.md").write_text(
+        (plan / "plan.md").read_text().replace("| RUNNING |", "| VERIFYING |")
+    )
+    launched: list = []
+    monkeypatch.setattr(run_cmd, "run_selection", lambda *args: launched.append(args) or 0)
+    shared = capability(mode="cli", quota_id="A", quota_evidence=("fixture:quota-A",))
+    hypothetical = capability("claude", "cli", quota_id="B", quota_evidence=("fixture:quota-B",))
+    assert (
+        host.dispatch(
+            str(plan),
+            resolver.Request("executor"),
+            LINE,
+            actual_harness="codex",
+            capabilities=(shared, hypothetical),
+            reviewer=resolver.Request("verifier"),
+            review_line=LINE,
+            review=True,
+            independence=resolver.Independence(delivery=delivery, quota=True),
+            completed_execution=completed,
+        )
+        == 3
+    )
+    assert not launched
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        None,
+        "operation",
+        "original",
+        "pins",
+        "exact_id",
+        "effort",
+        "route",
+        "evidence",
+        "delivery_id",
+    ],
+)
+def test_review_rejects_missing_or_contradictory_history_before_tools(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    change: str | None,
+) -> None:
+    plan = make_l(tmp_path, [row("N01", "VERIFYING", model=f"codex::{PIN}/{PIN}")], extra=POLICY)
+    completed = resolver.resolve(
+        Policy(("codex",), {}),
+        resolver.Request("executor", f"codex::{PIN}"),
+        resolver.Context("codex", "claude-code"),
+        (capability(),),
+    )
+    assert isinstance(completed, resolver.Selection)
+    changes = {
+        "operation": "verifier",
+        "original": PIN,
+        "pins": resolver.Pins(None, None, None),
+        "exact_id": "other",
+        "effort": "medium",
+        "route": "claude",
+        "evidence": (),
+        "delivery_id": "",
+    }
+    completed = replace(completed, **{change: changes[change]}) if change else None
+
+    def forbidden(*args: object) -> None:
+        pytest.fail("history must be checked before fresh capability inspection")
+
+    monkeypatch.setattr(host, "_capabilities", forbidden)
+    assert (
+        host.dispatch(
+            str(plan),
+            resolver.Request("executor"),
+            LINE,
+            actual_harness="codex",
+            capabilities=(capability(),),
+            reviewer=resolver.Request("verifier"),
+            review_line=LINE,
+            review=True,
+            completed_execution=completed,
+        )
+        == 3
+    )
+    assert "completed_execution" in capsys.readouterr().err
+
+
+def test_independent_review_does_not_need_executor_delivery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = make_l(
+        tmp_path,
+        [row("N01", "RUNNING", model="opus@high/claude::opus@high")],
+        extra="harnesses: codex,claude-code\nproviders: codex,claude\n",
+    )
+    records: list = []
+    assert (
+        host.dispatch(
+            str(plan),
+            resolver.Request("executor"),
+            LINE,
+            actual_harness="codex",
+            capabilities=(capability(quota_id="A", quota_evidence=("quota-A",)),),
+            adapters=(adapter([]),),
+            record=records.append,
+        )
+        == 0
+    )
+    (plan / "plan.md").write_text(
+        (plan / "plan.md").read_text().replace("| RUNNING |", "| VERIFYING |")
+    )
+    launched: list = []
+    monkeypatch.setattr(run_cmd, "run_selection", lambda *args: launched.append(args) or 0)
+    assert (
+        host.dispatch(
+            str(plan),
+            resolver.Request("executor"),
+            LINE,
+            actual_harness="codex",
+            capabilities=(capability("claude", "cli", quota_id="B", quota_evidence=("quota-B",)),),
+            reviewer=resolver.Request("verifier"),
+            review_line=LINE,
+            review=True,
+            completed_execution=records[0],
+            independence=resolver.Independence(delivery=True, quota=True),
+        )
+        == 0
+    )
+    assert len(launched) == 1
+    assert launched[0][0] == "verifier"

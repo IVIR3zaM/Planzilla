@@ -541,3 +541,57 @@ def test_pair_handoff_retains_failed_route_evidence_and_auth_recovery() -> None:
     assert result.failures == (failure,)
     assert "claude-cli-auth-failure" in result.evidence
     assert any("authentication" in alternative for alternative in result.alternatives)
+
+
+@pytest.mark.parametrize(
+    "route,quota,delivery,expected",
+    [
+        ("codex", "A", "codex-cli", "delivery_independence"),
+        ("copilot", "A", "copilot-cli", "quota_independence"),
+        ("copilot", None, "copilot-cli", "quota_independence"),
+        ("copilot", "B", "codex-native", "delivery_independence"),
+        ("copilot", "B", "copilot-cli", None),
+    ],
+)
+def test_review_uses_fixed_history(
+    route: str, quota: str | None, delivery: str, expected: str | None
+) -> None:
+    from planzilla.resolver import resolve_review
+
+    execution = Request("executor", "opus@high")
+    completed = selected(resolve(POLICY, execution, context(), (capability("codex", quota="A"),)))
+    caps = (capability(route, "cli", quota=quota, delivery=delivery),)
+    before = deepcopy((completed, caps))
+    result = resolve_review(
+        POLICY,
+        execution,
+        Request("verifier", f"{route}::opus@high"),
+        context(),
+        caps,
+        completed,
+        Independence(delivery=True, quota=True),
+    )
+    if expected:
+        unavailable(result, expected)
+    else:
+        assert selected(result).route == route
+    assert (completed, caps) == before
+
+
+@pytest.mark.parametrize("reason", ["auth", "permission", "unknown", "quota_exhausted"])
+def test_review_preserves_current_failure_classification(reason: str) -> None:
+    from planzilla.resolver import resolve_review
+
+    execution = Request("executor", "opus")
+    completed = selected(resolve(POLICY, execution, context(), (capability("codex"),)))
+    failure = Failure(reason, (f"observed:{reason}",))
+    result = resolve_review(
+        POLICY,
+        execution,
+        Request("verifier", "copilot::opus"),
+        context(),
+        (replace(capability("copilot", "cli"), failure=failure),),
+        completed,
+    )
+    assert unavailable(result, reason).failures == (failure,)
+    assert result.evidence == failure.evidence

@@ -1,6 +1,6 @@
 # Natural harness-aware model routing and Copilot CLI support
 status: RUNNING
-created: 2026-10-22 · updated: 2026-10-22
+created: 2026-10-22 · updated: 2026-10-23
 goal: Support natural harness-aware aliases, independent delivery routes and Copilot CLI, with proven Codex orchestration fixes.
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 commit: per-node
@@ -40,7 +40,7 @@ models: planner=gpt-6.1-sol@high, exec=gpt-6.1-sol@high, verify=gpt-6.1-sol@high
 | N10 | integrate compatibility regressions and docs | exec | N09 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
 | N11 | whole-plan acceptance | check | N13 | -/gpt-6.1-sol@high | 0 | 1 | TODO | |
 | N12 | restrict initial-policy dispatch to planner Outline | exec | N10 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
-| N13 | anchor review independence to completed execution | exec | N12 | gpt-6.1-sol@high/gpt-6.1-sol@high | 0 | 0 | TODO | |
+| N13 | anchor review independence to completed execution | exec | N12 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
 
 ### Planned node scope
 

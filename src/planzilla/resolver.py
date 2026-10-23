@@ -377,6 +377,105 @@ def resolve_pair(
     reviews, problem = _candidates(policy, reviewer, context, capabilities)
     if problem is not None:
         return problem
+    return _pair(executor, reviewer, context, executions, reviews, independence)
+
+
+def completed_execution_problem(
+    policy: Policy, executor: Request, context: Context, completed: Selection | None
+) -> Unavailable | None:
+    """Validate host-attested history against the bound request, without current capabilities."""
+    if policy.harnesses is not None and context.actual_harness not in policy.harnesses:
+        return _problem(executor, context, None, "coordinator", "coordinator is not in harnesses")
+    if context.actual_harness not in HARNESS_ROUTES:
+        return _problem(executor, context, None, "coordinator", "unknown actual harness")
+    intent = executor.token if executor.token is not None else policy.models.get("exec")
+    detail = "completed_execution is required from a successful executor invocation"
+    if completed is not None:
+        detail = "completed_execution contradicts the bound executor request/pins or lacks evidence"
+        try:
+            name, effort = split_token(intent or "-")
+            pins = Pins(
+                None if name in PORTABLE_ALIASES or name in PROVIDERS else name,
+                effort,
+                route_of(intent or "-"),
+            )
+            mapped_effort = (
+                {"opus": "high", "sonnet": "medium", "haiku": "low"}.get(name)
+                if completed.route == "codex"
+                else None
+            )
+            if (
+                executor.role in ("executor", "exec")
+                and completed.operation == executor.role
+                and completed.original == executor.token
+                and completed.intent == intent
+                and completed.pins == pins
+                and (pins.exact_id is None or pins.exact_id == completed.exact_id)
+                and (pins.route is None or pins.route == completed.route)
+                and (
+                    effort is not None or mapped_effort is None or completed.effort == mapped_effort
+                )
+                and (effort is None or completed.effort == effort)
+                and (
+                    name not in PORTABLE_ALIASES
+                    or completed.route != "codex"
+                    or completed.exact_id == "gpt-6.1-sol"
+                )
+                and (completed.effort != "low" or executor.allow_low)
+                and completed.route in allowed_routes(intent or "-")
+                and completed.route in HARNESS_ROUTES.values()
+                and completed.actual_harness in HARNESS_ROUTES
+                and completed.mode in ("native", "cli")
+                and completed.delivery_id
+                and completed.exact_id
+                and completed.evidence
+                and completed.separate_context
+                and (not executor.visual or completed.visual_evidence)
+            ):
+                return None
+        except ValueError:
+            pass
+    return _problem(
+        executor,
+        context,
+        intent,
+        "completed_execution",
+        detail,
+        completed.evidence if completed is not None else (),
+    )
+
+
+def resolve_review(
+    policy: Policy,
+    executor: Request,
+    reviewer: Request,
+    context: Context,
+    capabilities: tuple[Capability, ...],
+    completed_execution: Selection | None,
+    independence: Independence | None = None,
+) -> Selection | Unavailable:
+    """Resolve only reviewers against host-retained successful execution history."""
+    problem = completed_execution_problem(policy, executor, context, completed_execution)
+    if problem is not None:
+        return problem
+    assert completed_execution is not None
+    reviews, problem = _candidates(policy, reviewer, context, capabilities)
+    if problem is not None:
+        return problem
+    pair = _pair(
+        executor, reviewer, context, (completed_execution,), reviews, independence or Independence()
+    )
+    return pair if isinstance(pair, Unavailable) else pair[1]
+
+
+def _pair(
+    executor: Request,
+    reviewer: Request,
+    context: Context,
+    executions: tuple[Selection, ...],
+    reviews: tuple[Selection, ...],
+    independence: Independence,
+) -> tuple[Selection, Selection] | Unavailable:
     delivery_pair = False
     for execution in executions:
         for review in reviews:

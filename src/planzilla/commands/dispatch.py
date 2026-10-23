@@ -171,10 +171,11 @@ def dispatch(
     review_line: str | None = None,
     independence: resolver.Independence | None = None,
     review: bool = False,
+    completed_execution: resolver.Selection | None = None,
     initial_policy: Policy | None = None,
     record: Callable[[resolver.Selection | resolver.Unavailable], None] | None = None,
 ) -> int:
-    """Supported host entrypoint. Load policy, resolve once (or as a pair), consume selections.
+    """Supported host entrypoint. Load policy, resolve the current phase, consume its selection.
 
     Before a plan exists, initial_policy authorizes only a planner Outline with a target,
     without node binding or pair/review options. All later phases require an existing plan.
@@ -199,10 +200,15 @@ def dispatch(
                 or review_line is not None
                 or independence is not None
                 or review
+                or completed_execution is not None
             ):
                 raise ValueError("initial planner Outline cannot use pair/review options")
-        if review and reviewer is None:
-            raise ValueError("review requires an executor/reviewer pair")
+        if completed_execution is not None and not review:
+            raise ValueError("completed_execution is only valid for review=True")
+        if review and (
+            request.role != "executor" or reviewer is None or reviewer.role != "verifier"
+        ):
+            raise ValueError("review requires executor and verifier roles")
         if reviewer is not None:
             if review_line is None:
                 raise ValueError("review_line is required for a separate reviewer")
@@ -269,8 +275,22 @@ def dispatch(
         elif actual_harness not in HARNESS_ROUTES:
             outcome = resolver.resolve(policy, request, context, ())
         else:
-            requests = (request,) if reviewer is None else (request, reviewer)
-            lines = (line,) if review_line is None else (line, review_line)
+            if review:
+                problem = resolver.completed_execution_problem(
+                    policy, request, context, completed_execution
+                )
+                if problem is not None:
+                    if record is not None:
+                        record(problem)
+                    return _handoff(problem)
+            requests = (
+                (reviewer,) if review else ((request,) if reviewer is None else (request, reviewer))
+            )
+            lines = (
+                (review_line,)
+                if review
+                else ((line,) if review_line is None else (line, review_line))
+            )
             permitted = tuple(
                 c
                 for c in capabilities
@@ -282,7 +302,11 @@ def dispatch(
             )
             facts = _capabilities(permitted, adapters, context, requests, lines)
             outcome = (
-                resolver.resolve(policy, request, context, facts)
+                resolver.resolve_review(
+                    policy, request, reviewer, context, facts, completed_execution, independence
+                )
+                if review and reviewer is not None
+                else resolver.resolve(policy, request, context, facts)
                 if reviewer is None
                 else resolver.resolve_pair(policy, request, reviewer, context, facts, independence)
             )
@@ -294,7 +318,7 @@ def dispatch(
         for selection in selections:
             if record is not None:
                 record(selection)
-        selection = selections[1] if review else selections[0]
+        selection = selections[0]
         if record is None:
             for notice in selection.notices:
                 print(f"notice: {notice}", file=sys.stderr)

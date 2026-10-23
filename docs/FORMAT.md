@@ -519,23 +519,37 @@ Details:
   task permission. Visual work requires the host-native proven surface and never a text-only CLI.
 - **Callable host adapter**: `planzilla.commands.dispatch.dispatch(plan_ref, Request, line, *,
   actual_harness, capabilities, adapters=(), node_id=None, reviewer=None, review_line=None,
-  independence=None, review=False, initial_policy=None, record=None) -> int` is the supported native/CLI
-  boundary. It loads existing plan policy, checks actual coordinator before capabilities, reconciles the
-  observed callable schema, calls `resolve`/`resolve_pair`, records selections, then consumes the current
-  phase selection. For deliberate independence pass both requests and lines on each invocation: resolve
+  independence=None, review=False, completed_execution=None, initial_policy=None, record=None) -> int`
+  is the supported native/CLI boundary. It loads existing plan policy, checks actual coordinator before capabilities, reconciles the
+  observed callable schema, calls `resolve`/`resolve_pair`/`resolve_review`, records selections, then
+  consumes the current phase selection. For deliberate independence pass both requests and lines on each
+  invocation: resolve
   the pair together, launch only execution with `review=False`, then after checks and `set VERIFYING`
-  resolve again and launch only the separate reviewer with `review=True`. No review runs ahead of state.
+  launch only the separate reviewer with `review=True, completed_execution=<Selection>`. This required
+  host-supplied selection must come from the executor invocation that succeeded (return code 0), bound
+  to this node/try by the host; it retains original pins, delivery/quota identities and evidence unchanged
+  through host-owned capture/reload on resume. Review validates executor role and the bound executor
+  request/Graph pins before inspecting capabilities, then resolves only current reviewers against that
+  fixed history. Missing, contradictory or incomplete history gives a `completed_execution` handoff
+  (exit 3); a disappeared executor delivery is never re-resolved or required to remain available.
+  Delivery/quota evidence must satisfy the requested independence; otherwise hand off before invocation.
+  `completed_execution` with `review=False` is invalid (exit 2); review requires executor/verifier roles.
+  No review runs ahead of state. Check-only nodes with no execution use a standalone verifier request.
   Without a plan, `plan_ref=None` requires a confirmed, effectively composed `initial_policy: Policy`
   and permits only a planner `Outline: <target>` request with a nonempty target for Outline/DRAFT creation.
   Missing initial policy, other roles or commands (including Plan, Brief, Replan, Revise and final review),
   visual requests, explicit `node_id`, input `Node:` fields and supplied pair/review options (`reviewer`,
-  `review_line`, `independence` or `review=True`) exit 2 with a one-line error before capability/schema
-  inspection, executable/auth probes, subprocesses, adapter invocation or selection recording.
+  `review_line`, `independence`, `completed_execution` or `review=True`) exit 2 with a one-line error before
+  capability/schema inspection, executable/auth probes, subprocesses, adapter invocation or selection recording.
   Later lifecycle phases require an existing plan, which rejects an initial-policy override and retains
   effective policy, coordinator restrictions and node Graph pins/state checks. With an existing plan,
   planner-wide Revise/final review may omit a node and use effective role defaults.
   `record` receives each full immutable selection/handoff before invocation (both selections for a pair);
-  it is a host-owned sink, not capability proof.
+  it is a host-owned sink, not capability proof or completion evidence. Prospective pair records attest
+  selections only, including a reviewer that has not run. The host retains only the executor selection
+  whose invocation succeeded, never a failed invocation or the prospective reviewer. Review records only
+  its current reviewer selection or handoff. Reloaded data must restore `Selection`, nested `Pins` and
+  `Failure` records and tuple fields. No automatic state store, persistence or discovery is added.
   `NativeAdapter(route, schema, invoke, model_field="model", effort_field="reasoning_effort",
   role_field="task_name", input_field="message", fixed={"fork_turns": "none"}, delivery_id=None)`
   describes one actually callable tool. `schema` maps real exposed field names to accepted-value tuples,
@@ -797,7 +811,12 @@ aliases or capability selection. Configured/actual mismatch cannot bypass the al
 | visual facts | usable navigation and snapshot/image operations on the selected surface, with evidence; absent or unknown means unavailable |
 
 The pure API is `resolver.resolve(policy, request, context, capabilities)` and
-`resolver.resolve_pair(policy, executor, reviewer, context, capabilities, independence)`. `Policy` holds
+`resolver.resolve_pair(policy, executor, reviewer, context, capabilities, independence)` before execution,
+then `resolver.resolve_review(policy, executor, reviewer, context, capabilities, completed_execution,
+independence)` for review. `completed_execution` is the host-retained actual successful executor `Selection`;
+the pure core trusts the host's completion attestation, never infers completion from pair records. It checks
+that history matches the bound executor request/pins and has delivery/selection evidence; capabilities are
+used only for current reviewers, never to reconstruct execution history. `Policy` holds
 effective providers, merged role defaults and optional harnesses. `effective_policy` can also receive
 `actual_harness` to reject the coordinator before composing defaults; resolver entry points always check it.
 `Request` keeps the original token (or `None` for a role default), role, low-effort permission and visual
@@ -827,9 +846,12 @@ Opaque `delivery_id` and `quota_id` values are nonsecret canonical identities es
 `quota_evidence` must establish the quota identity/separation, rather than just label different routes.
 `Independence(delivery=True)` requires different routes and different delivery identities;
 `Independence(quota=True)` requires distinct known canonical quotas with evidence for each. Unknown or
-shared quotas fail this requirement. Pair resolution searches the ordered candidate product so fallback
+shared quotas fail this requirement. Pre-execution pair resolution searches the ordered candidate product so fallback
 retains every pin and both independence requirements. Without independence requirements, separate cold
-contexts may share a route; this supplies no claim of separate quotas.
+contexts may share a route; this supplies no claim of separate quotas. Review searches only the ordered
+reviewer candidates against the retained completed selection. A vanished/failed executor delivery neither
+blocks a supported reviewer nor permits replacement execution. Missing necessary retained evidence or
+contradictory request/Graph pins requires a focused handoff; resume reloads the same host-owned history.
 
 Selections retain original request, resolved intent, family, exact ID, effort, actual harness, route, mode,
 delivery/quota identity and evidence, pins, mismatch notices and classified failures. Unavailable results
@@ -838,7 +860,8 @@ alternatives. Ordering prefers proven native selection on the actual harness, th
 then supplied capability/model order. Identical inputs produce identical results without input mutation.
 
 For identical supplied facts, selection and diagnostics are deterministic. Resolve both executor and
-reviewer when independence constrains the pair. Output either a supported selection (original intent,
+reviewer prospectively when independence constrains the pair; after successful execution resolve only
+reviewers against retained actual history. Output either a supported selection (original intent,
 family, exact ID, effort, actual harness, delivery route, native/CLI mode, quota identity, evidence and
 preserved pins), or an unavailable/unsupported outcome naming the failed constraint and focused handoff.
 Keep family, exact ID, effort, harness, delivery and quota identity distinct. Model-name prefixes do not
@@ -877,8 +900,8 @@ work around a failed route.
 
 After a concrete route is unavailable (including observed Claude quota exhaustion), portable intent may
 fall back to a proven allowed route only if every ID/effort/route pin and deliberate reviewer independence
-survives. Exclude only the concrete unavailable route. Resolve the pair together rather than silently moving
-both phases to the same delivery. Claude Opus execution with Copilot Opus review can preserve deliberately
+survives. Exclude only the concrete unavailable route. Resolve prospective pairs together; after completion
+keep execution fixed and resolve only reviewers against that history. Claude Opus execution with Copilot Opus review can preserve deliberately
 distinct routes despite sharing a family, but requires evidence of usable routes and independent quotas.
 Unknown quota independence cannot satisfy a distinct-quota requirement. Separate cold verifier contexts on
 one route are allowed when policy allows them; they provide separate judgement contexts, not quota separation.

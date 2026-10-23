@@ -247,7 +247,8 @@ The planner chooses within effective permissions using demonstrated capabilities
 - Every reviewer is a separate cold role invocation. One permitted route may supply both cold contexts;
   that provides separate judgement, not separate quotas. Deliberate delivery/quota independence requires
   distinct delivery identities and distinct known quota identities with evidence. Family or route names
-  alone prove neither. Resolve executor/reviewer together through fallback to preserve that requirement.
+  alone prove neither. Resolve prospective pairs together; resolve review against completed execution
+  history to preserve that requirement.
 - Fall back only after concrete delivery failure, excluding only the failed delivery and retaining pins and
   independence. Distinguish quota exhaustion, authentication, permission, unsupported selection and unknown
   failures. Generic exits, silence, signals or HTTP 429 without quota semantics do not prove exhaustion.
@@ -270,7 +271,17 @@ Facts describe demonstrated model controls, delivery and evidence; they are not 
 has no native callback. Dispatch uses the Graph selection and in-flight phase, records actual/configured
 harness mismatch and selections/handoffs, and preserves resolved pins through `run_selection`. The orchestrator
 must `set` the phase before dispatch; dispatch does not change plan state. For deliberate pairs, resolve both
-requests but invoke only the current phase, then separately resolve review after `set VERIFYING`.
+requests but invoke only execution. Selection records, including prospective pair records, do not attest
+completion. Only after executor dispatch succeeds (return code 0), the host retains its executor `Selection`,
+associated with that node/try, including original pins, delivery/quota identities and all evidence. After
+`set VERIFYING`, pass both requests/lines with `review=True, completed_execution=<retained Selection>`.
+Review resolves only currently supported reviewers against this fixed history; a disappeared executor
+cannot be replaced by a hypothetical executor or block a supported independent reviewer. Missing evidence
+or a contradiction with the bound executor request/Graph pins produces a focused handoff. The host owns
+capture/reload across resume; dispatch adds no persistence or discovery. Preserve the retained selection
+unchanged, including nested `Pins`, `Failure` and tuple evidence fields when reloading serialized data.
+Ordinary same-route cold review remains allowed without a quota separation claim. Check-only nodes without
+an executor phase use a standalone verifier invocation.
 
 Legacy `planzilla run <role> <model> <line>` keeps direct Claude/Codex CLI behavior and the caller's working
 directory; capability-aware dispatch uses the plan repository. Direct `run` accepts supported exact
