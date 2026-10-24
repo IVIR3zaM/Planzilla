@@ -11,13 +11,16 @@ from planzilla.commands._common import (
     ResolveError,
     append_log,
     fail,
+    load_brief,
+    load_config,
+    load_plan,
     plan_lock,
     resolve_plan,
     uncommitted,
     write_plan,
 )
-from planzilla.config import load_config, plan_policy
-from planzilla.plan import PlanError, load_brief, load_plan
+from planzilla.config import plan_policy
+from planzilla.plan import PlanError
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:

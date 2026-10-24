@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from planzilla import config
+from planzilla.commands._common import load_config
 from tests.e2e.harness import DATE, NAME, REF, Cli, git, plan_dir
 
 REPO = Path(__file__).resolve().parents[2]
@@ -71,7 +71,7 @@ def test_directory_plan_templates_with_a_minimal_node_lint_clean(repo: Path) -> 
 
 def test_config_template_parses_to_the_documented_defaults(repo: Path) -> None:
     (repo / ".plan" / "config.md").write_text((TEMPLATES / "config.md").read_text())
-    loaded = config.load_config(repo)
+    loaded = load_config(repo)
     assert (loaded.commit, loaded.push, loaded.retention) == ("per-node", "none", "keep")
     assert loaded.models == {"planner": "opus", "exec": "sonnet", "verify": "sonnet"}
 

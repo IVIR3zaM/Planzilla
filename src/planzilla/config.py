@@ -112,14 +112,6 @@ def plan_policy(config: Config, plan: Plan, *, actual_harness: str | None = None
     return policy
 
 
-def load_config(repo: Path) -> Config:
-    """Read `<repo>/.plan/config.md`; a missing file gives all defaults."""
-    path = repo / ".plan" / "config.md"
-    if not path.is_file():
-        return Config()
-    return parse_config(path.read_bytes().decode("utf-8"), path)
-
-
 def parse_config(text: str, file: Path | str) -> Config:
     config = Config()
     seen: set[str] = set()

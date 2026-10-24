@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from planzilla.config import Config, load_config, parse_config
+from planzilla.commands._common import load_config
+from planzilla.config import Config, parse_config
 from planzilla.plan import PlanError
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "plans" / "repo"

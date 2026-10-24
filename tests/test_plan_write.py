@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from planzilla.plan import Node, append_entry, attempt_key, load_plan, render_graph, render_plan
+from planzilla.commands._common import load_plan
+from planzilla.plan import Node, append_entry, attempt_key, render_graph, render_plan
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "plans" / "repo"
 

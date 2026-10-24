@@ -3,17 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from planzilla.plan import (
-    Plan,
-    PlanError,
-    find_plans,
-    load_brief,
-    load_plan,
-    node_paths,
-    parse_plan,
-    render_graph,
-    save_graph,
-)
+from planzilla.commands._common import find_plans, load_brief, load_plan, save_graph
+from planzilla.plan import Plan, PlanError, node_paths, parse_plan, render_graph
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "plans" / "repo"
 S_NAME = "2026-01-02-demo-s.md"
