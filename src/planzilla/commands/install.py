@@ -34,7 +34,10 @@ sys.exit(main())
 # Kit sub-directory -> install directories (relative to the target).
 _KIT_FLAT = {"roles": ".planzilla/roles", "templates": ".planzilla/templates"}
 _SKILL_DIRS = (".claude/skills", ".agents/skills")
-_AGENT_DIR = ".claude/agents"
+_AGENT_DIRS = {
+    "claude": (".claude/agents", ".md"),
+    "copilot": (".github/agents", ".agent.md"),
+}
 
 
 class InstallError(Exception):
@@ -100,9 +103,10 @@ def desired_files(pkg_dir: Path, version: str) -> dict[str, tuple[bytes, int]]:
     for sub, dest in _KIT_FLAT.items():
         for rel, path in _source_files(kit / sub):
             files[f"{dest}/{rel}"] = (path.read_bytes(), 0o644)
-    for rel, path in _source_files(kit / "agents" / "claude"):
-        if "/" not in rel and rel.startswith("plz-") and rel.endswith(".md"):
-            files[f"{_AGENT_DIR}/{rel}"] = (path.read_bytes(), 0o644)
+    for provider, (dest, suffix) in _AGENT_DIRS.items():
+        for rel, path in _source_files(kit / "agents" / provider):
+            if "/" not in rel and rel.startswith("plz-") and rel.endswith(suffix):
+                files[f"{dest}/{rel}"] = (path.read_bytes(), 0o644)
     for rel, path in _source_files(kit / "skills"):
         if rel.split("/")[0].startswith("plz-"):
             for base in _SKILL_DIRS:
@@ -123,13 +127,14 @@ def _owned_roots(target: Path) -> list[Path]:
 def _existing_owned(target: Path) -> list[Path]:
     """Existing files and symlinks that the removal pass may touch (D25: only Planzilla's own)."""
     found: list[Path] = []
-    agents = target / _AGENT_DIR
-    if agents.is_dir():
-        found += sorted(
-            p
-            for p in agents.iterdir()
-            if p.name.startswith("plz-") and p.name.endswith(".md") and not p.is_dir()
-        )
+    for dest, suffix in _AGENT_DIRS.values():
+        agents = target / dest
+        if agents.is_dir():
+            found += sorted(
+                p
+                for p in agents.iterdir()
+                if p.name.startswith("plz-") and p.name.endswith(suffix) and not p.is_dir()
+            )
     for root in _owned_roots(target):
         if root.is_symlink() or not root.is_dir():
             continue

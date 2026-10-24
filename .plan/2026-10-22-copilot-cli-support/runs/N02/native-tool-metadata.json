@@ -1,0 +1,62 @@
+{
+  "observed": "2026-10-22",
+  "evidence": "available session tool declarations, not a live delegate execution",
+  "source": "collaboration namespace declaration supplied to this executor",
+  "tool": "collaboration.spawn_agent",
+  "fields": [
+    "task_name",
+    "message",
+    "fork_turns",
+    "model",
+    "reasoning_effort"
+  ],
+  "fork_turns": {
+    "accepted": [
+      "all",
+      "none"
+    ],
+    "default": "all",
+    "override_rule": "Only fork_turns=none accepts model or reasoning_effort overrides."
+  },
+  "model": "gpt-6.1-sol",
+  "reasoning_efforts": [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra"
+  ],
+  "supported_selection_examples": [
+    {
+      "task_name": "n05_exec",
+      "fork_turns": "none",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "message": "<executor role wrapper and exact input line>"
+    },
+    {
+      "task_name": "n02_verify",
+      "fork_turns": "none",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "high",
+      "message": "<verifier role wrapper and exact input line>"
+    }
+  ],
+  "lifecycle": {
+    "wait_agent": "Mailbox wait, 10,000–3,600,000 ms; use <=60,000 ms in this host.",
+    "interrupt_agent": "Interrupt current turn; agent remains addressable; not equivalent to closing/killing a process.",
+    "list_agents": "List agents; no exact selected model/effort in declared result schema.",
+    "functions_exec": "Exec cells and process sessions have distinct identifiers.",
+    "write_stdin": "Poll/writes an exec_command session_id; does not itself prove progress or cancellation."
+  },
+  "not_exercised": [
+    "spawn",
+    "native model execution",
+    "model introspection",
+    "provider auth",
+    "quota",
+    "browser usability"
+  ],
+  "availability": "Tool-declared route selectable here; active account billing/quota and selected parent model not introspected."
+}

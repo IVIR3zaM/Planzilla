@@ -35,7 +35,7 @@ def test_adapter_frontmatter_and_role(path: Path) -> None:
     assert fields["name"].startswith("plz-")
     assert fields["name"] == path.stem
     if path.stem == "plz-run":  # D6: the adapter starts `plz run`, it follows no role file
-        assert fields["tools"] == "Bash"
+        assert fields["tools"] == "Bash, TaskOutput, TaskStop"
         assert fields["model"] == "haiku"
         assert ".planzilla/plz run" in text
         assert ".planzilla/roles/" not in text
@@ -44,6 +44,20 @@ def test_adapter_frontmatter_and_role(path: Path) -> None:
     assert roles, f"{path.name}: references no role"
     for role in roles:
         assert (KIT / "roles" / f"{role}.md").is_file()
+
+
+@pytest.mark.parametrize(
+    "tools",
+    ["Bash", "Bash, TaskOutput", "Bash, TaskStop", "Bash, TaskOutput, TaskStop, Read"],
+)
+def test_run_adapter_rejects_missing_job_controls_and_extra_tools(
+    tmp_path: Path, tools: str
+) -> None:
+    text = (KIT / "agents/claude/plz-run.md").read_text(encoding="utf-8")
+    path = tmp_path / "plz-run.md"
+    path.write_text(re.sub(r"^tools:.*$", f"tools: {tools}", text, flags=re.MULTILINE))
+    with pytest.raises(AssertionError):
+        test_adapter_frontmatter_and_role(path)
 
 
 @pytest.mark.parametrize("role", ROLES)

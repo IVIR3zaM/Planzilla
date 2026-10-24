@@ -85,9 +85,35 @@ line, in this order (optional lines may be absent):
 | `push` | `per-node` · `none` (`yes`/`no` accepted) | no, default config `push` | planner (from config `push`) |
 | `budgets` | `<B> tries per brief · <R> replans per node` | no, default `2 tries per brief · 2 replans per node` | planner |
 | `tier` | `S` · `M` (single file only) | no, default M | planner |
+| `harnesses` | nonempty comma-separated subset of `claude-code`, `codex`, `copilot`, no repeats | no, legacy harness permissions | planner |
+| `providers` | nonempty comma-separated subset of `claude`, `codex`, `copilot`, no repeats | no, inherit repository providers | planner |
+| `models` | `planner=<m>, exec=<m>, verify=<m>` (any nonempty subset, no repeated roles) | no, inherit repository role defaults individually | planner |
 
-An unknown key, a missing required key or a bad value is a parse error. The CLI rewrites only the `status:` value
-and the `updated:` date, nothing else in the header.
+An unknown key, a missing required key or a bad value is a parse error. Normal Graph writes rewrite only the `status:` value and the `updated:` date. The supported `policy`
+command below additionally replaces confirmed policy fields without rewriting Graph or prose.
+
+Optional policy lines follow `tier` (or the last present earlier header key), in order `harnesses`,
+`providers`, `models`. A plan's providers **replace** the repository list; they are never unioned with it. Merge models
+by role: explicit Graph tokens take precedence for their phase, then plan role defaults, then repository
+role defaults, then built-in defaults (§8). A Graph `-` still means an absent phase or the existing verify
+default rule (§9), rather than an exec-model override. Missing plan policy preserves existing behavior.
+Validate the merged role defaults against the effective provider list; an inherited incompatible exact
+default is an error, never a reason to expand the plan's allowed routes. Explicit plan model errors point
+to `models:`; an inherited default disabled by a plan restriction points to `providers:`.
+Empty policy fields, with or without a space after `:`, give the field-specific errors in §8. Header key
+ordering still applies; models-before-providers is an out-of-order header error, not an alternate spelling.
+
+`harnesses` restricts both the actual coordinator and every role's delivery, independently of configured
+`harness` and effective providers. Check actual coordinator membership before resolving defaults or aliases.
+Map delivery permissions `claude-code` → `claude`, `codex` → `codex`, `copilot` → `copilot`, then intersect
+with effective providers; never widen either list. Multiple entries permit listed cross-harness combinations.
+Omission adds no harness restriction and preserves legacy behavior. Empty, duplicate or unknown entries give
+`bad harnesses value '<v>': expected a comma-separated subset of claude-code, codex, copilot, no repeats`
+at that header line. A supplied disallowed coordinator gives `coordinator <h> is not in harnesses` there;
+an empty intersection gives `harnesses and providers have no allowed delivery`. Incompatible merged defaults
+remain errors; an inherited default disabled by the harness intersection points at `harnesses:`. These pure
+checks are reusable for planner/replanner, executor and verifier; dispatch enforcement and CLI persistence
+are separate integration work. This schema does not migrate an existing plan or change repository config.
 
 Plan status: DRAFT while any Decision is `proposed`; the planner sets READY once all are confirmed. From then on
 the CLI derives it after every write (`set`, `resume`), in this order:
@@ -130,33 +156,52 @@ or end of section:
 Cells are written as `| <value> |` with one space on each side; an empty note is `| |`. On write the CLI
 replaces only the changed row lines; every other byte of the file is kept.
 
-**Model tokens.** A model token is `<name>` or `<name>@<effort>`: `<name>` matches `[a-z0-9.-]+` and `<effort>`
-matches `[a-z]+`. The same grammar holds in config `models` (§8). A name's provider comes from the name; a name
-with no provider is a valid token but `run` (§9) rejects it. An `@<effort>` needs a name with a provider and one
-of that provider's levels:
+**Model tokens.** The shared grammar for config models, plan models, Graph and `set --model` is
+`[<route>::]<name>[@<effort>]`. Names match `[a-z0-9.-]+`, efforts `[a-z]+`, and a route is `claude`, `codex`
+or `copilot`. There are no spaces inside a token. `::` qualifies delivery and leaves the existing `/`
+exec/verify separator unambiguous: `claude::opus/copilot::opus`. Graph accepts `-` as its phase sentinel;
+role defaults cannot be `-`. `split_token` returns the unqualified name and effort; `route_of` returns only
+an explicit route or a bare CLI-default route. Callers must preserve the original token's constraints.
 
-| provider | names | `@<effort>` levels |
-|----------|-------|--------------------|
-| `claude` | `claude`, `opus`, `sonnet`, `haiku`, `fable`, or any name starting `claude-` | `low` · `medium` · `high` · `max` |
-| `codex` | `codex`, or any name starting `gpt-` | `low` · `medium` · `high` · `xhigh` · `max` |
+Ordinary `opus`, `sonnet` and `haiku` are portable intent, with no route prefix required. They remain valid
+with Codex-only policy. `fable` remains a legacy Claude-family alias. A versioned ID pins the exact model;
+`@effort` pins effort; `route::` pins delivery. These are independent constraints. `claude-` and `gpt-`
+prefixes classify model families for syntax and effort validation, never delivery, authentication or quota
+identity. Both families may be delivered by Copilot: `claude::claude-sonnet-5` and
+`copilot::claude-sonnet-5`, or `codex::gpt-5.6-sol@high` and `copilot::gpt-5.6-sol@high`, are distinct route
+constraints for the same exact model. Name compatibility does not demonstrate availability.
 
-A bare `claude` or `codex` means that CLI's configured default model, alone or with its provider's `@<effort>`
-(`codex@high`); `run` (§9) omits the model flag for it and keeps the effort flag. Every other token keeps its argv.
+| name class | syntactically compatible routes | `@<effort>` levels |
+|------------|----------------------------------|--------------------|
+| portable `opus`, `sonnet`, `haiku` | all three | `low` · `medium` · `high` · `max` |
+| `fable`, `claude-*` | `claude`, `copilot` | `low` · `medium` · `high` · `max` |
+| `gpt-*` | `codex`, `copilot` | `low` · `medium` · `high` · `xhigh` · `max` |
+| bare `claude` | `claude` only | `low` · `medium` · `high` · `max` |
+| bare `codex` or `copilot` | that route only | `low` · `medium` · `high` · `xhigh` · `max` |
+| other names (legacy syntax) | unconstrained until capability resolution | none |
 
-**Choosing models.** The planner writes models only of the providers config `providers` lists (§8), on one
-scale: mechanical work haiku or `codex@low`; well-specified coding sonnet or `codex@medium`; judgement opus,
-fable or `codex@high`. The verify model follows the hardest non-`cmd` criterion on that scale (§6). Codex is
-chosen by effort on bare `codex` (a versioned name only if the request names one); Claude by its versionless
-aliases, with no `@<effort>` where the harness should run them natively (§14). With both providers listed, a
-node verifies on the other provider than its exec. When one provider's usage runs out, a replan may move a node
-to the other (`plz set <plan> <id> --model M`).
+A bare route names that CLI's configured default, optionally with effort (`codex@high`); it does not pin an
+exact ID. A resolver must verify the selected default against any other constraints. For legacy Claude/Codex
+CLI execution (§9), the bare name omits the model flag. Copilot parsing does not authorize external execution.
+Without an effort suffix no explicit effort is pinned; portable mappings use §14. Existing valid tokens,
+including `gpt-6.1-sol@medium` and `gpt-6.1-sol@high`, keep their spelling and round-trip unchanged.
 
-A bad token is rejected with the reason `bad model token '<token>': expected <name> or <name>@<effort>`
-(grammar), `… : <name> takes no effort` (a name with no provider) or `… : <provider> efforts are <levels>` (an
-unknown level). Each path words its error its own way: a Graph model cell is a parse error `bad model '<cell>'`
-without the token reason; `set --model` (§9) fails `bad --model '<m>': <reason>` (or `bad --model '<m>': expected
-<exec>/<verify>` when the value is not two tokens); config `models` (§8) fails `bad models value '<value>':
-<reason>`. Without `@<effort>` the provider CLI's own default effort applies.
+**Choosing models.** Mechanical work uses haiku/low, coding sonnet/medium, judgement opus/high (§14).
+Verify uses the hardest non-`cmd` criterion (§6). Planners can deliberately qualify Claude Opus execution
+and Copilot Opus review. Neither the same family nor different families proves route/quota independence.
+Effective plan policy (§3) constrains every selection, including planner defaults.
+
+A grammar error has reason `bad model token '<token>': expected [<route>::]<name>[@<effort>]`;
+an unknown qualifier gives `… : unknown route <route>`; a contradictory qualifier gives
+`… : <name> is incompatible with route <route>` (including qualified `-`). Bad efforts give
+`… : <name> takes no effort` or `… : <family> efforts are <levels>`. A malformed qualifier such as
+`copilot:opus`, an empty name/route, or multiple qualifiers is a grammar error. Each path wraps the reason:
+Graph reports `bad model '<cell>'` at its row's file/line; `set --model` reports
+`bad --model '<m>': <reason>` (or `… : expected <exec>/<verify>` if not two tokens); config and header models
+report `bad models value '<value>': <reason>` at the models line. Disabled explicit routes report
+`bad models value '<token>': provider <route> is not in providers`. An unqualified exact ID requires at least
+one compatible allowed route; failure names `provider one of <routes> is not in providers`. Unknown legacy
+names remain parseable but need capability evidence to execute.
 
 Node types:
 - `exec`: an executor does the work, `check` runs its `[cmd]` criteria, a verifier judges the rest. Model e.g.
@@ -353,14 +398,11 @@ are the only record.
 (starting with `#`) or `key: value` with a key below; anything else, an unknown key or a repeated key is a parse
 error naming the file and line. Missing file = all defaults. The first `plz-new-plan` run in a repo detects values
 (pyproject.toml, package.json, Makefile, AGENTS.md/CLAUDE.md), proposes them in its question round and writes
-the file. It also detects each provider's CLI (`command -v claude`, `command -v codex`), its login
-(`claude auth status` exit 0 with `"loggedIn": true`; `codex login status` exit 0) and the harness
-(`CLAUDECODE=1`: `claude-code`; else the agent names it). Its question round asks `providers` (recommending each
-logged-in provider; a logged-out one is shown its login command, `claude auth login` or `codex login`) and
-`harness` (recommending the detected one). When the answer is `providers: codex` alone, it also writes
-`models: planner=codex@high, exec=codex@medium, verify=codex@medium`. With an existing config, a provider the
-request names but `providers` lacks, or no `harness` while the detected harness is not `claude-code`, is asked in
-that round, and only that one line is rewritten or added.
+the file. `providers` is an allowed delivery list, not a claim of installed binaries, login, quota or model
+availability. `harness` records the configured client; actual callable tools decide dispatch (§14). A request
+for an additional route is reconciled with plan policy before use. Do not silently rewrite repository config
+to resolve a mismatch or an unavailable route. A Codex-only configuration can keep portable defaults, or pin
+exact supported Sol IDs and efforts. A bare `codex@high` does not establish an exact model.
 
 | key | values | default | used by |
 |-----|--------|---------|---------|
@@ -370,9 +412,9 @@ that round, and only that one line is rewritten or added.
 | `push` | `per-node` · `none` (`yes`/`no` accepted as aliases) | `none` | planner → header `push:`; CLI when the header lacks it |
 | `retention` | `keep` · `prune-logs` · `delete` · `branch-only` | `keep` | `commit` on the finishing commit (§10) |
 | `visual_recipe` | one line: how to start the app and which URL to open | empty | `brief --verify` for nodes with `[visual]` |
-| `models` | `planner=<m>, exec=<m>, verify=<m>` (any subset); each `<m>` is a model token (§4) | `planner=opus, exec=sonnet, verify=sonnet` | `next` (planner actions; `verify` when the Graph says `-`), planner defaults |
-| `providers` | `claude`, `codex` or both, comma-separated, no repeats | `claude` | `lint` (rule `providers`, §9); the planner, which writes only listed providers' models; `plz-new-plan` (above) |
-| `harness` | `claude-code` · `codex`: the agent harness that runs the plans | `claude-code` | `lint` (rule `visual`, §9); the planner (§14 "Native or `plz run`"); never executors or verifiers |
+| `models` | `planner=<m>, exec=<m>, verify=<m>` (any nonempty subset, no repeated roles); each `<m>` is a model token (§4) | `planner=opus, exec=sonnet, verify=sonnet` | role defaults, composed with plan models (§3) |
+| `providers` | nonempty comma-separated subset of `claude`, `codex`, `copilot`, no repeats | `claude` | `lint` (rule `providers`, §9); allowed delivery routes for the planner/resolver |
+| `harness` | `claude-code` · `codex` · `copilot`: configured agent harness | `claude-code` | `lint` (rule `visual`, §9); capability reconciliation (§14); never permission to infer native tools |
 | `preauthorized` | `;`-separated actions agents may take without asking | empty | planner → Decisions |
 | `always_review` | `yes` · `no` | `no` | planner: with `yes` every exec node gets at least one `[review]` criterion |
 | `commit_trailer` | text; `\n` separates lines | empty | `commit` message (§10) |
@@ -381,12 +423,22 @@ A plan header value wins over the config for that plan. Engineering rules stay i
 
 `models`, `providers` and `harness` limits (parse errors naming the file and line, whatever the key order):
 - a `models` value that is not a model token is `bad models value '<value>': <token error>` (§4);
+- empty models or unknown roles give `bad models value '<value>': expected 'planner=<m>, exec=<m>, verify=<m>' (any nonempty subset)`;
+- repeated roles give `bad models value '<value>': repeated model role: <role>`;
+- a `-` role default gives `bad models value '<value>': role default cannot be '-'`;
 - `providers` empty, naming another provider or repeating one is
-  `bad providers value '<value>': expected a comma-separated subset of claude, codex, no repeats`;
-- every `models` token whose name has a provider needs that provider in `providers`:
-  `bad models value '<token>': provider <provider> is not in providers`;
-- a `harness` value other than `claude-code` or `codex` is
-  `bad harness value '<v>': expected one of claude-code, codex`.
+  `bad providers value '<value>': expected a comma-separated subset of claude, codex, copilot, no repeats`;
+- every role default must have a syntactically compatible allowed route (§4), checked after all fields are
+  parsed, regardless of config key order. An explicit route must be listed. Portable `opus` with
+  `providers: codex` is valid; `claude::opus` with that list is disabled;
+- a `harness` value outside the three choices is
+  `bad harness value '<v>': expected one of claude-code, codex, copilot`.
+
+Plan policy uses the same providers/models parsers. Pure effective-policy composition takes supplied config,
+header and source location, returns a fresh provider/model policy, and checks all merged role defaults.
+It performs no file, environment, clock or provider access. Header providers replace repo providers;
+partial header models inherit other roles (§3). Explicit Graph selections win over role defaults for their
+phase but cannot expand the effective provider list; Graph route restrictions are checked by `lint`.
 
 ## §9 CLI commands and output lines
 
@@ -403,7 +455,7 @@ or plan error (unknown plan or node, parse error, cycle, illegal transition, fai
 `3` external failure (git, push, network, lock timeout). Errors print one line `error: <message>` to stderr and
 nothing to stdout. Stubs print `not implemented: <name>` to stderr and exit 2.
 
-**Writes and locking.** Commands that write plan files (`set`, `resume`, `log`, `check`, `commit`) first take the
+**Writes and locking.** Commands that write plan files (`policy`, `set`, `resume`, `log`, `check`, `commit`) first take the
 lock `<plan path>.lock` (a directory created with `os.mkdir` next to the plan file or plan directory), retrying
 every 50 ms for 10 s, and remove it when done; a lock older than 60 s is stale and removed; timeout exits 3.
 Files are replaced atomically (write a temp file, then `os.replace`).
@@ -411,6 +463,7 @@ Files are replaced atomically (write a temp file, then `os.replace`).
 | command | arguments | stdout (each line one line; `<…>` filled in) | exit |
 |---------|-----------|----------------------------------------------|------|
 | `install` | `[--target DIR]` (default cwd) `[--version vX]` `[--archive-url URL]` | `installed planzilla <version> into <target>: <a> added, <c> changed, <r> removed` | 0; 2 target missing; 3 download or extract failed (target unchanged) |
+| `policy` | `<plan> [--harnesses LIST] [--providers LIST] [--models ROLES]` (at least one) | `policy updated: <plan name>` | 0; 2 invalid policy/Graph; 3 lock/write failure |
 | `next` | `<plan>` | one line per action: `<id> <action> <model>`; nothing when no action | 0; 2 |
 | `set` | `<plan> <id> [STATUS] [--note TEXT] [--add] [--title T] [--type exec\|check\|gate] [--deps D] [--model M]` | `<id> <STATUS> try <t> rp <r>`, plus ` · dispatch <agent> <model>` when STATUS is BRIEFING, RUNNING, VERIFYING or REPLAN | 0 (also when redirected); 2 |
 | `resume` | `<plan>` | per in-flight node: `<id> <STATUS> try <t> rp <r> · rerun`; then per WAITING or BLOCKED node: `<id> <STATUS> try <t> rp <r> · held` | 0; 2 |
@@ -421,13 +474,14 @@ Files are replaced atomically (write a temp file, then `os.replace`).
 | `status` | `<plan>` | the §12 text | 0; 2 |
 | `stats` | `<plan>` | the §12 line | 0; 2 |
 | `lint` | `<plan>` | per problem: `<file>:<line>: <rule>: <message>`; when clean: `lint ok: <n> nodes, <w> waves` | 0 clean; 1 problems; 2 unreadable plan |
-| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply |
 | `serve` | `<plan> [--port N]` (default 8765) | `serving <slug> on http://127.0.0.1:<port>/`, then blocks until Ctrl-C | 0; 3 port in use |
+| `dispatch` | `<plan> <role> <line> --actual-harness H --facts FILE [--node ID] [--model TOKEN] [--allow-low] [--record FILE]` | the current role's one-line reply | 0; 2 invalid input/policy/state; 3 unavailable delivery/role failure |
+| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply |
 
 Details:
 - `next`: lines in Graph row order; `<action>` is `brief`, `exec`, `check`, `verify`, `replan` or `ask` (§5
-  "ready"); `<model>`: exec → the Graph `<exec>`; verify → the Graph `<verify>` (config `models` `verify` if `-`);
-  brief and replan → config `models` `planner`; check and ask → `-`. `ask` lines are printed only when no other
+  "ready"); `<model>`: exec → the Graph `<exec>`; verify → the Graph `<verify>` (effective `models` `verify` if `-`);
+  brief and replan → effective `models` `planner`; check and ask → `-`. `ask` lines are printed only when no other
   line is. BLOCKED nodes never print a line. A cycle exits 2 with `error: cycle N03 -> N05 -> N03`.
 - `set`: STATUS may be omitted only with structure options. `--add` appends a new row (`--title`, `--deps`,
   `--model` required, `--type` default `exec`, try 0, rp 0, TODO); `--title`, `--deps`, `--model` alone edit a
@@ -435,6 +489,80 @@ Details:
   RUNNING → `plz-executor`; VERIFYING → `plz-visual` if the node has a `[visual]` criterion, else `plz-verifier`;
   model as in `next`. During a run, `set` is the only writer of Graph rows (D8); the planner adds or edits rows
   through it.
+- `policy`: replace each supplied existing policy header field (or insert it in canonical header order);
+  omitted fields remain byte-identical. `--models` replaces the plan's role-override field as a whole;
+  omitted roles inherit repository defaults individually. Values use the §3 parsers, including nonempty,
+  duplicate-free lists. Under the plan lock, parse all proposed fields together, compose effective policy
+  and validate every existing Graph token against it before any write. Update only policy fields and the
+  `updated:` date atomically; preserve unrelated headers, Intent, Decisions, Graph, briefs and logs. Invalid
+  values, empty intersections and incompatible inherited defaults/Graph routes exit 2 without writes.
+  No options exits 2. No auth, model or quota probes occur. Example of a confirmed migration:
+  `plz policy <plan> --harnesses codex --providers codex --models 'planner=gpt-6.1-sol@high, exec=gpt-6.1-sol@high, verify=gpt-6.1-sol@high'`.
+- `next`, `set` and `resume` compose effective defaults before actionable output or state/log writes.
+  With explicit plan policy, validate Graph restrictions too, including add/edit/retry/new nodes. Omitted
+  plan policy preserves legacy Graph editing behavior; every capability-aware dispatch still resolves and
+  enforces its request against effective providers. Rejected operations leave plan/log bytes unchanged.
+- `dispatch`: `FILE` is a UTF-8 JSON array of §14 `Capability` records (nested `Model`/`Failure` objects;
+  tuples become JSON arrays). Facts are supplied observed evidence, never auto-discovered or promoted from
+  fixtures to proof of live access. The actual harness is required separately from repository `harness`.
+  Excluded providers have no model/auth/quota probes. The command connects policy and resolution to
+  `commands.run.run_selection`, retaining the selected exact model/effort/route without prefix reselection.
+  CLI execution uses the referenced plan's repository as its working directory, including auth-status
+  checks and role-file lookup; legacy direct `run` continues to use the caller's working directory.
+  The shell has no native callback: absent native controls trigger pin-preserving proven CLI fallback or
+  one focused handoff naming operation, constraint, evidence and alternatives (exit 3). External Copilot
+  remains disabled. `--record FILE` writes an array of the full selection/handoff records as JSON, without
+  changing plan state. Node-bearing input binds to that Graph row even without `--node`; an explicit node
+  must agree. Node phases require BRIEFING/REPLAN, RUNNING or VERIFYING for planner, executor or verifier;
+  conflicting `--model` cannot override Graph pins. Executors require a node. Before dispatching the next
+  phase the orchestrator still performs `set`; `dispatch` never changes state. `--allow-low` is an explicit
+  task permission. Visual work requires the host-native proven surface and never a text-only CLI.
+- **Callable host adapter**: `planzilla.commands.dispatch.dispatch(plan_ref, Request, line, *,
+  actual_harness, capabilities, adapters=(), node_id=None, reviewer=None, review_line=None,
+  independence=None, review=False, completed_execution=None, initial_policy=None, record=None) -> int`
+  is the supported native/CLI boundary. It loads existing plan policy, checks actual coordinator before capabilities, reconciles the
+  observed callable schema, calls `resolve`/`resolve_pair`/`resolve_review`, records selections, then
+  consumes the current phase selection. For deliberate independence pass both requests and lines on each
+  invocation: resolve
+  the pair together, launch only execution with `review=False`, then after checks and `set VERIFYING`
+  launch only the separate reviewer with `review=True, completed_execution=<Selection>`. This required
+  host-supplied selection must come from the executor invocation that succeeded (return code 0), bound
+  to this node/try by the host; it retains original pins, delivery/quota identities and evidence unchanged
+  through host-owned capture/reload on resume. Review validates executor role and the bound executor
+  request/Graph pins before inspecting capabilities, then resolves only current reviewers against that
+  fixed history. Missing, contradictory or incomplete history gives a `completed_execution` handoff
+  (exit 3); a disappeared executor delivery is never re-resolved or required to remain available.
+  Delivery/quota evidence must satisfy the requested independence; otherwise hand off before invocation.
+  `completed_execution` with `review=False` is invalid (exit 2); review requires executor/verifier roles.
+  No review runs ahead of state. Check-only nodes with no execution use a standalone verifier request.
+  Without a plan, `plan_ref=None` requires a confirmed, effectively composed `initial_policy: Policy`
+  and permits only a planner `Outline: <target>` request with a nonempty target for Outline/DRAFT creation.
+  Missing initial policy, other roles or commands (including Plan, Brief, Replan, Revise and final review),
+  visual requests, explicit `node_id`, input `Node:` fields and supplied pair/review options (`reviewer`,
+  `review_line`, `independence`, `completed_execution` or `review=True`) exit 2 with a one-line error before
+  capability/schema inspection, executable/auth probes, subprocesses, adapter invocation or selection recording.
+  Later lifecycle phases require an existing plan, which rejects an initial-policy override and retains
+  effective policy, coordinator restrictions and node Graph pins/state checks. With an existing plan,
+  planner-wide Revise/final review may omit a node and use effective role defaults.
+  `record` receives each full immutable selection/handoff before invocation (both selections for a pair);
+  it is a host-owned sink, not capability proof or completion evidence. Prospective pair records attest
+  selections only, including a reviewer that has not run. The host retains only the executor selection
+  whose invocation succeeded, never a failed invocation or the prospective reviewer. Review records only
+  its current reviewer selection or handoff. Reloaded data must restore `Selection`, nested `Pins` and
+  `Failure` records and tuple fields. No automatic state store, persistence or discovery is added.
+  `NativeAdapter(route, schema, invoke, model_field="model", effort_field="reasoning_effort",
+  role_field="task_name", input_field="message", fixed={"fork_turns": "none"}, delivery_id=None)`
+  describes one actually callable tool. `schema` maps real exposed field names to accepted-value tuples,
+  or `None` for unrestricted string fields. The host supplies `invoke(fields) -> str`, which invokes the
+  real tool and returns its completed reply; Python cannot manufacture that bridge. Codex requires the
+  exact exposed `model`, `reasoning_effort`, `task_name`, `message`, `fork_turns="none"` controls; model
+  IDs and efforts are intersected with accepted schema values. Other hosts supply their demonstrated
+  field names/fixed controls explicitly, including Copilot profile/delegation precedence evidence (§14).
+  A callback receives a separate `plz-<role>` invocation and prompt to read repo rules and its role file.
+  Missing/unsupported fields disable only that concrete native delivery, retain evidence and all pins,
+  and rerun resolution before any invocation. CLI selections use the existing shared runner; native
+  selections never reach the shell. Completed replies keep the one-line protocol; wait/cancel and raw
+  process classification remain outside this adapter. With no record sink, mismatch notices go to stderr.
 - `brief` executor mode (default): the brief verbatim; then, if `t ≥ 2`, a blank line, `## Findings (try <t-1>)`
   and the findings (§7) verbatim; then, if the rerun marker is present, a blank line and
   `Rerun: this try was interrupted; the tree may hold its partial edits. Continue from them.`; then a blank line
@@ -450,11 +578,13 @@ Details:
   does not start with a backticked command) · `length` (a brief over 40 lines) · `deps` (a dep that is not a node) ·
   `cycle` (cycle in the Graph, reported on the first row of the cycle) · `overlap` (two nodes of the same wave with
   overlapping Write items, reported on the second node's `Write:` line, naming both items) · `providers` (a Graph
-  exec or verify token whose provider config `providers` does not list, reported on the node's row:
-  `<id> model <token> needs config providers to list <provider>`) · `visual` (config `harness`, §8 and §14: on a
+  exec or verify token incompatible with effective `providers`, reported on the node's row:
+  `<id> model <token> needs <source> providers to list <required>`; source is `plan` when header providers
+  exist, otherwise `config`, and required is the explicit route or `one of <compatible routes>`) ·
+  `visual` (config `harness`, §8 and §14: on a
   `[visual]` criterion's line when the harness has no visual agent:
   `<id> [visual] needs a visual agent; harness <h> has none`; on the row line, for a node with a `[visual]`
-  criterion whose verify model (Graph `<verify>`, else config `models` `verify`) the harness does not run
+  criterion whose verify model (Graph `<verify>`, else effective `models` `verify`) the harness does not run
   natively: `<id> verify <token> is not a model harness <h> runs natively`). A missing brief is not a problem
   (just-in-time briefing).
 - `serve` binds 127.0.0.1 only and never writes.
@@ -474,10 +604,27 @@ Details:
     --tools <T> --allowedTools <T> --permission-mode dontAsk`; the reply is stdout. `<T>` per role: planner
     `Read,Grep,Glob,Write,Edit,Bash`; executor `Read,Grep,Glob,Edit,Write,Bash`; verifier `Read,Grep,Glob,Bash`.
   The reply is the last non-blank line of the output, stripped, printed alone to stdout (exit 0); an empty
-  output is `error: <cli> gave an empty reply`. Exit 3 messages: `error: <cli> not found on PATH`,
-  `error: <cli> is not logged in; run codex login` (claude: `claude auth login`) and
-  `error: <cli> exited <code>[: <last non-blank stderr line, else stdout line>]`. Billing goes to the plan or
-  account the CLI is logged in to.
+  output is `error: <cli> gave an empty reply`. External failures exit 3, print exactly one `error: …`
+  line to stderr and no reply to stdout. Diagnostics report observations, never inferred quota exhaustion,
+  cancellation actor or termination cause:
+  - Missing executable: `error: <cli> not found on PATH`. Other launch failures, including permission denial
+    or a missing working directory: `error: <cli> <phase> launch failed[: <observed error detail>]`, where
+    phase is `login check` or `execution`.
+  - Nonzero child status: `error: <cli> exited <code>[: <detail>]`; negative subprocess return codes report
+    `error: <cli> terminated by signal <positive signal number>[: <detail>]`. Login-check failures use
+    `<cli> login check` in place of `<cli>`. Detail prefers the last non-blank stderr line, then stdout.
+    A signal proves termination by that signal, not who sent it or why.
+  - Failed status execution alone is not logout evidence. An explicit Codex `Not logged in` detail on an
+    ordinary nonzero login-check exit appends `; codex is not logged in; run codex login` to its diagnostic.
+    A successful Claude status operation with JSON `loggedIn: false` reports
+    `error: claude is not logged in; run claude auth login`. Invalid/missing Claude authentication status
+    reports `error: claude login check returned invalid authentication status[: <detail>]`.
+    Recovery hints require established authentication failure; generic exits and signals give none.
+  - Missing or unreadable Codex reply files: `error: codex reply read failed[: <observed error detail>]`.
+    This differs from a successfully read but empty reply. Error detail is reduced to its last non-blank
+    line. Per-role temporary reply directories are removed on success and failure.
+  This lifecycle also applies to resolved CLI dispatch; supported argv, model/effort/route pins, role input
+  and legacy direct-run selection remain unchanged. Billing goes to the plan or account the CLI is logged in to.
 - `check`: runs each `[cmd]` criterion with `sh -c` from the repo root, in criterion order, all of them even after
   a failure, each with a 900 s timeout (timeout = fail, exit shown as `timeout`); writes the log entry and
   evidence (§7). It never changes the Graph. A node with no `[cmd]` criteria prints `<id> check PASS 0/0`.
@@ -642,27 +789,161 @@ outputs and one-line agent replies; between agents it passes `<plan>` and ids. I
 Agents read their input with `brief` (executor: default mode; verifier: `--verify`) and write their log entry
 with `log` before replying. The planner runs `lint` after writing and edits Graph rows only through `set`.
 
-**Native or `plz run`.** For each dispatch the orchestrator uses the named agent with model `<m>` when the
-harness (config `harness`, §8) runs `<m>` natively:
+**Capability resolution contract.** N03 supplies token parsing, pure policy composition and effective-policy
+lint. N04 implements resolution from supplied capability facts; N08 propagates it through dispatch and the
+kit. The following is their required contract, not a claim that parsing a token enables its execution.
+Legacy `runs_natively`/visual checks remain conservative static lint checks: Claude's unqualified aliases
+without effort are native there; Codex and Copilot have no statically asserted native or visual capability.
+Legacy `plz run` supports Claude/Codex unqualified CLI tokens (§9); qualified/Copilot dispatch requires the
+later resolver/runner integration. Do not send a qualified token to a legacy prefix-based runner.
 
-| harness | runs natively | every other token | `[visual]` |
-|---------|---------------|-------------------|------------|
-| `claude-code` (default) | `opus`, `sonnet`, `haiku`, `fable`, without `@<effort>` | through the `plz-run` adapter | `plz-visual` |
-| `codex` | nothing | each dispatch a background `plz run` job | no visual agent: the planner writes `[smoke]` or `[human]` instead |
+Resolution receives data, never discovers tools or probes accounts itself. Apply optional plan `harnesses`
+to the actual coordinator first and intersect delivery permissions with providers (§3), before defaults,
+aliases or capability selection. Configured/actual mismatch cannot bypass the allowlist:
 
-No subagent tool takes a bare `claude` or `codex` (§4): it always goes through `plz run`, in Claude Code too.
-Every other dispatch runs `plz run <role> <m> '<line>'`, the role taken from the named agent (planner,
-executor, verifier): with subagents it dispatches `plz-run` with `Run: <role> <m> · <line>`; without, it starts
-one background shell job per line, waits in calls of at most 5 minutes and takes the last line of the job's
-stdout (exit 0) or stderr. A `plz run` reply routes as its role's reply; an `error: …` line is a crash.
-`plz-visual` never goes through `plz run`. A line no route can dispatch stops the run with
-`<id>: cannot dispatch <agent> <m>`. One batch may mix native and `plz run` dispatches, all in parallel.
+| supplied input | meaning |
+|----------------|---------|
+| policy and request | effective providers/role defaults, original token, role/phase, and any deliberate executor/reviewer independence requirement |
+| actual harness | observed client and callable native tool schema, separately from configured `harness` |
+| selection capabilities | each supported route/mode's exact model IDs, aliases/default resolution, supported efforts and enforceable model/effort controls, with evidence references |
+| delivery facts | opaque nonsecret delivery and credential/quota identities; independently established separation, shared identity or unknown |
+| availability facts | native callable support or demonstrated external entrypoint/reply usability; route-specific observed failures and their classification |
+| visual facts | usable navigation and snapshot/image operations on the selected surface, with evidence; absent or unknown means unavailable |
 
-To enable the other provider: install its CLI, log in (`codex login`, `claude auth login`) and list it in config
-`providers` (§8). Codex reads AGENTS.md and `.agents/skills/`. In Codex, each `plz run` job starts `codex exec`
-or `claude -p`, which need network and logins outside the repo, so approve `.planzilla/plz run` outside Codex's
-sandbox when asked; never recommend `--dangerously-bypass-approvals-and-sandbox`. Check each Codex flag you name
-with `codex --help`.
+The pure API is `resolver.resolve(policy, request, context, capabilities)` and
+`resolver.resolve_pair(policy, executor, reviewer, context, capabilities, independence)` before execution,
+then `resolver.resolve_review(policy, executor, reviewer, context, capabilities, completed_execution,
+independence)` for review. `completed_execution` is the host-retained actual successful executor `Selection`;
+the pure core trusts the host's completion attestation, never infers completion from pair records. It checks
+that history matches the bound executor request/pins and has delivery/selection evidence; capabilities are
+used only for current reviewers, never to reconstruct execution history. `Policy` holds
+effective providers, merged role defaults and optional harnesses. `effective_policy` can also receive
+`actual_harness` to reject the coordinator before composing defaults; resolver entry points always check it.
+`Request` keeps the original token (or `None` for a role default), role, low-effort permission and visual
+requirement. `Context` separates actual and configured harness. Planner/replanner and replan use planner
+defaults; executor/exec and verifier/verify use their respective defaults. Each selection requires a
+separate role invocation, including a verifier sharing a route with its executor.
+
+Each `Capability` describes one concrete route/mode/delivery, its supported `Model` records (exact ID,
+family, resolved aliases and efforts), enforceable model/effort controls, and evidence references. Native
+availability must be `callable_native` on the actual harness's route; CLI availability must be `external_reply`
+demonstrating an entrypoint and usable reply. A disabled record, absent evidence, catalog, executable-only,
+mock or unknown availability cannot enable delivery. Model/effort controls mean exposed enforceable fields
+or flags, never prompt assertions. `default_id`, when supplied, is an evidenced exact resolution of a bare
+CLI default into that capability's model records. A proven CLI default may omit a model control; explicit
+model selection and native delivery still require it. Every selected explicit or mapped effort needs a
+supported effort and an effort control. Low effort also requires the request's task-policy permission.
+Visual booleans represent demonstrated navigation and snapshot/image operations on this delivery's surface;
+both and nonempty visual evidence are required for a visual request.
+
+`Failure` is an already classified, evidenced observation attached only to that concrete capability:
+`missing_entrypoint`, `unsupported_selection`, `quota_exhausted`, `auth`, `permission`, or `unknown`.
+The resolver does no diagnostic parsing; generic exits, signals, silence and HTTP 429 without quota semantics
+must enter as `unknown`. Failed deliveries cannot be selected. Their classifications and evidence survive
+fallback; authentication recovery remains explicit even when another delivery succeeds.
+
+Opaque `delivery_id` and `quota_id` values are nonsecret canonical identities established by the caller.
+`quota_evidence` must establish the quota identity/separation, rather than just label different routes.
+`Independence(delivery=True)` requires different routes and different delivery identities;
+`Independence(quota=True)` requires distinct known canonical quotas with evidence for each. Unknown or
+shared quotas fail this requirement. Pre-execution pair resolution searches the ordered candidate product so fallback
+retains every pin and both independence requirements. Without independence requirements, separate cold
+contexts may share a route; this supplies no claim of separate quotas. Review searches only the ordered
+reviewer candidates against the retained completed selection. A vanished/failed executor delivery neither
+blocks a supported reviewer nor permits replacement execution. Missing necessary retained evidence or
+contradictory request/Graph pins requires a focused handoff; resume reloads the same host-owned history.
+
+Selections retain original request, resolved intent, family, exact ID, effort, actual harness, route, mode,
+delivery/quota identity and evidence, pins, mismatch notices and classified failures. Unavailable results
+retain the operation/request, failed constraint, evidence, mismatch and focused recovery/constraint-change
+alternatives. Ordering prefers proven native selection on the actual harness, then effective provider order,
+then supplied capability/model order. Identical inputs produce identical results without input mutation.
+
+For identical supplied facts, selection and diagnostics are deterministic. Resolve both executor and
+reviewer prospectively when independence constrains the pair; after successful execution resolve only
+reviewers against retained actual history. Output either a supported selection (original intent,
+family, exact ID, effort, actual harness, delivery route, native/CLI mode, quota identity, evidence and
+preserved pins), or an unavailable/unsupported outcome naming the failed constraint and focused handoff.
+Keep family, exact ID, effort, harness, delivery and quota identity distinct. Model-name prefixes do not
+select delivery; different route names alone do not prove separate quota identities.
+
+Apply effective plan restrictions and explicit pins before choosing an available route. Prefer proven native
+selection in the actual harness for portable intent. Apply these mappings only where the supplied capabilities
+support the resulting tuple:
+
+| portable intent | Claude Code native | Copilot native | active Codex native |
+|-----------------|--------------------|----------------|---------------------|
+| `opus` / judgement | supported Opus | supported Opus through Copilot | `gpt-6.1-sol@high` |
+| `sonnet` / implementation | supported Sonnet | supported Sonnet through Copilot | `gpt-6.1-sol@medium` |
+| `haiku` / mechanical | supported Haiku | supported Haiku through Copilot | supported Sol at low effort, when task policy permits |
+
+These are intent mappings, not intelligence equivalences or claims of model availability. An explicit ID
+remains exact; an explicit effort remains exact; a route qualifier remains fixed. For example,
+`copilot::claude-sonnet-5@high` cannot become Codex Sol or Claude delivery. Unqualified exact
+`claude-sonnet-5` can use either proven allowed compatible delivery while keeping that exact ID.
+`codex::opus` retains its Codex route while resolving portable family intent. An effort-qualified alias
+retains its pinned effort across any otherwise permitted mapping. Bare CLI defaults must be resolved and
+checked; a prompt saying “use model X” or an unverified inherited default is insufficient exact selection.
+
+Actual/configured mismatch is surfaced before dispatch. Use the actual exposed tool contract and effective
+plan policy to reconcile it: a configured Claude harness never makes a Claude Agent tool callable from
+Codex. If exact native selection is enforceable, use its real fields and a separate role invocation; otherwise
+use a demonstrated supported CLI route preserving the tuple, or return a focused handoff. Planner-only DRAFT,
+JIT briefing and replanning remain planner work; the orchestrator cannot author DRAFT to evade a model pin.
+
+**Failures, fallback and review.** Missing executable/entrypoint, unsupported exact selection, concrete quota
+exhaustion, authentication failure, permission denial and unknown/transient failure are separate outcomes.
+Authentication failure gives recovery guidance; it is not quota evidence and does not trigger interactive
+login. A generic exit, timeout, HTTP 429 without quota semantics or missing output cannot prove exhausted
+quota. Never scan provider-wide quotas, infer termination cause from a signal alone, or rewrite config to
+work around a failed route.
+
+After a concrete route is unavailable (including observed Claude quota exhaustion), portable intent may
+fall back to a proven allowed route only if every ID/effort/route pin and deliberate reviewer independence
+survives. Exclude only the concrete unavailable route. Resolve prospective pairs together; after completion
+keep execution fixed and resolve only reviewers against that history. Claude Opus execution with Copilot Opus review can preserve deliberately
+distinct routes despite sharing a family, but requires evidence of usable routes and independent quotas.
+Unknown quota independence cannot satisfy a distinct-quota requirement. Separate cold verifier contexts on
+one route are allowed when policy allows them; they provide separate judgement contexts, not quota separation.
+If no supported tuple preserves constraints, hand off once with the unavailable operation, evidence and
+minimal alternatives (supply capability evidence, restore the route, or authorize a constraint change).
+
+Native-only Copilot can be usable inside an active Copilot harness while its external executable is absent
+or unusable from another harness. Keep external Copilot disabled without demonstrated reachability and reply
+usability; a catalog or mock is insufficient. Browser/visual dispatch needs a usable surface, never just an
+installed browser, login window or tool name. N02's evidence establishes neither external Copilot nor a
+usable browser on the researched host, so both remain disabled there. Parsing/configuration support does
+not change that evidence.
+
+**Exact Codex-only plan policy.** A plan may restrict providers to `codex` and override planner/verifier
+defaults to `gpt-6.1-sol@high` while repository planner remains `opus`. Its planner must author exact Graph
+tokens too. For the copilot-cli-support D8 policy, the required tuple is `gpt-6.1-sol@high` for initial
+Outline/DRAFT planning, JIT `Brief:`, `Replan:`, `Revise:`, every other planner/replanner, all executors except
+N05/N07, every separate verifier and final review; N05/N07 execution uses `gpt-6.1-sol@medium`. Resume
+preserves this policy before any subsequent action. No Claude/Copilot model, auth, login or quota calls are
+allowed in that plan; controlled mocks exercise other routes. This describes policy support, without
+migrating the running plan header, actual repository config or vendored files in N03.
+
+Exact Codex native selection requires exposed `model` and `reasoning_effort` controls accepting those exact
+values. On the researched host, `fork_turns: "none"` is required with these overrides; inherited/all context
+cannot select them. If those controls are absent, a supported external route must preserve both model and
+effort through actual flags (§9), or dispatch stops for evidence/replan. Availability is never inferred from
+argv tests. Honor host permissions; never add approval/sandbox bypass flags.
+
+`plz-visual` requires the proven visual surface and never goes through a text-only `plz run`. A supported
+external dispatch uses the named role's one-line input and relays its final reply; an `error: …` line is a
+crash. Retain a supported owned job handle and per-role temporary output/error/status. Wait within host
+limits (at most five minutes per call, shorter where required); continue waiting while a quiet job is
+pending. Silence is not a hang; wait-call limits introduce no automatic execution deadline. Cancel only
+on explicit stop/cancel or demonstrated need, target only the owned job through supported host controls,
+and never kill by broad process matching. Retain output, error and observed completion status until reply
+extraction or cancellation is confirmed, then clean up only that job's temporary directory. Never delete
+live-job evidence; retain the handle and evidence while cancellation is unconfirmed. Do not introduce
+streaming logs or a process supervisor. An interruption does not consume a node retry; resume uses
+existing plan state through `resume` before continuing. Preserve pending/completed/failed/cancellation
+observations without inventing a cause. A line no route can dispatch stops with
+`<id>: cannot dispatch <agent> <m>` plus the focused constraint handoff. A batch may mix proven native and CLI
+routes. Executable presence, catalog entries and controlled mocks never prove live reachability or quota.
 
 **Loop.**
 

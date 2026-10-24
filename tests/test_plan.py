@@ -3,14 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from planzilla.plan import (
-    PlanError,
-    find_plans,
-    load_brief,
-    load_plan,
-    node_paths,
-    save_graph,
-)
+from planzilla.commands._common import find_plans, load_brief, load_plan, save_graph
+from planzilla.plan import Plan, PlanError, node_paths, parse_plan, render_graph
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "plans" / "repo"
 S_NAME = "2026-01-02-demo-s.md"
@@ -47,6 +41,131 @@ def line_of(path: Path, needle: str) -> int:
         if needle in line:
             return number
     raise AssertionError(needle)
+
+
+def policy_plan(policy: str = "", model: str = "opus/-") -> Plan:
+    text = (
+        "# Policy\nstatus: READY\ncreated: 2026-10-22 · updated: 2026-10-22\n"
+        "goal: policy\nverify: true\ncommit: none\n"
+        + policy
+        + "\n## Graph\n\n| id | title | type | deps | model | try | rp | status | note |\n"
+        "|----|-------|------|------|-------|-----|----|--------|------|\n"
+        f"| N01 | work | exec | - | {model} | 0 | 0 | TODO | |\n"
+    )
+    return parse_plan(text, Path("policy.md"), Path("policy.md"))
+
+
+@pytest.mark.parametrize("value", ["codex", "claude-code, codex, copilot"])
+def test_plan_harness_allowlist(value: str) -> None:
+    plan = policy_plan(f"harnesses: {value}\nproviders: codex\nmodels: planner=opus\n")
+    assert plan.header.harnesses == tuple(value.split(", "))
+    assert render_graph(plan) == plan.text
+
+
+def test_absent_harness_allowlist_is_legacy() -> None:
+    assert policy_plan().header.harnesses is None
+
+
+@pytest.mark.parametrize("value", ["", " ", "claude", "codex,", "copilot, copilot"])
+def test_bad_harness_allowlist_reports_field(value: str) -> None:
+    with pytest.raises(PlanError, match="bad harnesses value") as error:
+        policy_plan(f"harnesses: {value}\n")
+    assert error.value.line == 7
+    assert "no repeats" in error.value.message
+
+
+def test_harnesses_precede_providers_and_models() -> None:
+    with pytest.raises(PlanError, match="header key out of order: harnesses"):
+        policy_plan("providers: codex\nharnesses: codex\n")
+
+
+@pytest.mark.parametrize(
+    "cell",
+    [
+        "claude::opus/copilot::opus",
+        "claude::claude-sonnet-5/copilot::claude-sonnet-5",
+        "codex::gpt-5.6-sol@medium/copilot::gpt-5.6-sol@high",
+    ],
+)
+def test_qualified_pairs_round_trip_byte_identically(cell: str) -> None:
+    plan = policy_plan(model=cell)
+    assert f"{plan.nodes[0].exec_model}/{plan.nodes[0].verify_model}" == cell
+    assert render_graph(plan) == plan.text
+
+
+def test_plan_policy_overrides_repository_without_mutating_it() -> None:
+    from planzilla.config import effective_policy, parse_config
+
+    config = parse_config("providers: claude, copilot\nmodels: exec=haiku\n", "c")
+    plan = policy_plan(
+        "providers: codex\nmodels: planner=gpt-6.1-sol@high, verify=gpt-6.1-sol@high\n"
+    )
+    policy = effective_policy(config, plan.header, plan.graph_file)
+    assert policy.providers == ("codex",)
+    assert policy.models == {
+        "planner": "gpt-6.1-sol@high",
+        "exec": "haiku",
+        "verify": "gpt-6.1-sol@high",
+    }
+    assert config.models["planner"] == "opus"
+    assert config.providers == ("claude", "copilot")
+    assert render_graph(plan) == plan.text
+
+
+def test_absent_plan_policy_inherits_repository() -> None:
+    from planzilla.config import Config, effective_policy
+
+    config = Config()
+    plan = policy_plan()
+    policy = effective_policy(config, plan.header, plan.graph_file)
+    assert policy.providers == config.providers
+    assert policy.models == config.models
+    policy.models["planner"] = "haiku"
+    assert config.models["planner"] == "opus"
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        "providers: \n",
+        "providers: other\n",
+        "providers: copilot, copilot\n",
+        "models: \n",
+        "models: exec=opus, exec=sonnet\n",
+        "models: writer=opus\n",
+        "models: exec=gpt-6.1-sol@huge\n",
+        "models: exec=copilot:opus\n",
+        "providers: codex\nmodels: planner=claude::opus\n",
+        "models: exec=opus\nproviders: codex\n",
+        "providers: codex\nproviders: copilot\n",
+    ],
+)
+def test_bad_plan_policy_reports_source(policy: str) -> None:
+    with pytest.raises(PlanError) as error:
+        policy_plan(policy)
+    assert error.value.file == Path("policy.md")
+    assert error.value.line >= 7
+
+
+def test_effective_policy_rejects_disabled_inherited_exact_default() -> None:
+    from planzilla.config import effective_policy, parse_config
+
+    config = parse_config("models: planner=claude::opus\n", "c")
+    plan = policy_plan("providers: codex\n")
+    with pytest.raises(PlanError) as error:
+        effective_policy(config, plan.header, plan.graph_file)
+    assert error.value.line == 7
+    assert "provider claude is not in providers" in error.value.message
+
+
+@pytest.mark.parametrize("key", ["providers", "models"])
+@pytest.mark.parametrize("space", ["", " "])
+def test_empty_plan_policy_uses_the_field_error(key: str, space: str) -> None:
+    with pytest.raises(PlanError) as error:
+        policy_plan(f"{key}:{space}\n")
+    assert error.value.file == Path("policy.md")
+    assert error.value.line == 7
+    assert error.value.message.startswith(f"bad {key} value '': expected")
 
 
 # --- find_plans and layouts ------------------------------------------------

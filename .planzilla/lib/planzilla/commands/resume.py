@@ -16,6 +16,7 @@ from planzilla.commands._common import (
     uncommitted,
     write_plan,
 )
+from planzilla.config import load_config, plan_policy
 from planzilla.plan import PlanError, load_brief, load_plan
 
 
@@ -35,6 +36,7 @@ def run(args: argparse.Namespace) -> int:
             plan = load_plan(path)
             if plan.header.status == "DRAFT":
                 return fail(f"plan {plan.name} is DRAFT", 2)
+            plan_policy(load_config(plan.root), plan)
             if plan.header.status == "DONE":
                 return 0
             dirty = set()

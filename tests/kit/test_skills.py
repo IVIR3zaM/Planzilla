@@ -77,22 +77,33 @@ def test_run_plan_dispatches_every_agent() -> None:
         assert agent in text
 
 
-def test_run_plan_routes_provider_tokens_through_plz_run() -> None:
+def test_run_plan_uses_external_adapter_only_with_supported_delivery() -> None:
     text = skill_text("plz-run-plan")
     assert re.search(r"\bplz-run\b(?!-)", text), "plz-run-plan must name the plz-run adapter"
     assert "plz run" in text
+    assert "demonstrated entrypoint and usable reply" in text
+    assert "never send them to a legacy prefix runner" in text
 
 
-def test_run_plan_routes_per_harness() -> None:
+def test_run_plan_routes_by_actual_controls_instead_of_configured_harness() -> None:
     text = skill_text("plz-run-plan")
-    for word in ("Codex", "plz-run", "harness"):
-        assert word in text
+    assert "actual callable tool schema separately from configured harness" in text
+    assert "configuration is not tool evidence" in text
+    assert (
+        "Record original request, actual/configured harness and resolved model/effort/route" in text
+    )
 
 
-def test_new_plan_detects_logins_and_harness() -> None:
+def test_new_plan_checks_policy_before_allowed_auth_detection() -> None:
     text = skill_text("plz-new-plan")
-    for word in ("claude auth status", "codex login status", "harness", "providers"):
+    for word in (
+        "claude auth status",
+        "codex login status",
+        "effective policy",
+        "excluded providers",
+    ):
         assert word in text
+    assert text.index("effective policy") < text.index("claude auth status")
 
 
 def test_new_plan_dispatches_the_planner_by_the_same_rule() -> None:

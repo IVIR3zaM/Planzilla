@@ -2,6 +2,7 @@ import importlib
 import inspect
 import subprocess
 import sys
+from collections.abc import Callable
 
 import pytest
 
@@ -9,6 +10,7 @@ from planzilla import cli
 
 COMMANDS = [
     "install",
+    "policy",
     "next",
     "set",
     "resume",
@@ -20,6 +22,7 @@ COMMANDS = [
     "stats",
     "lint",
     "serve",
+    "dispatch",
     "run",
 ]
 
@@ -41,6 +44,22 @@ def test_command_order_matches_format():
     from planzilla import cli
 
     assert list(cli.COMMANDS) == COMMANDS
+
+
+@pytest.mark.parametrize(
+    "command,options",
+    [
+        ("policy", ("--harnesses", "--providers", "--models")),
+        ("dispatch", ("--actual-harness", "--facts", "--node", "--model", "--record")),
+    ],
+)
+def test_policy_and_dispatch_help(
+    plz: Callable[..., subprocess.CompletedProcess[str]], command: str, options: tuple[str, ...]
+) -> None:
+    result = plz(command, "--help")
+    assert result.returncode == 0
+    for option in options:
+        assert option in result.stdout
 
 
 def _stub_commands():

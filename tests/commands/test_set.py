@@ -90,6 +90,15 @@ def plz_set(capsys: pytest.CaptureFixture[str], plan: Path, *args: str) -> tuple
     return code, out.out, out.err
 
 
+def test_set_round_trips_qualified_model_pair(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = make_l(tmp_path, [row("N01")])
+    pair = "claude::opus/copilot::opus"
+    assert plz_set(capsys, plan, "N01", "--model", pair) == (0, "N01 TODO try 0 rp 0\n", "")
+    assert pair in graph_text(plan)
+
+
 def test_running_increments_try_writes_row_and_header(tmp_path, capsys):
     plan = make_l(
         tmp_path, [row("N01"), row("N02", deps="N01")], {"N01": brief("N01", "cmd", "review")}
