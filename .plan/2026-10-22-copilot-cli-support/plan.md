@@ -1,6 +1,6 @@
 # Natural harness-aware model routing and Copilot CLI support
 status: RUNNING
-created: 2026-10-22 · updated: 2026-10-24
+created: 2026-10-22 · updated: 2026-10-25
 goal: Support natural harness-aware aliases, independent delivery routes and Copilot CLI, with proven Codex orchestration fixes.
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 commit: per-node
@@ -38,10 +38,11 @@ models: planner=gpt-6.1-sol@high, exec=gpt-6.1-sol@high, verify=gpt-6.1-sol@high
 | N08 | fix Codex capability-aware dispatch | exec | N05,N06,N07 | gpt-6.1-sol@high/gpt-6.1-sol@high | 2 | 2 | DONE | |
 | N09 | clarify runner lifecycle and failure diagnostics | exec | N08 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 1 | DONE | |
 | N10 | integrate compatibility regressions and docs | exec | N09 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
-| N11 | whole-plan acceptance | check | N14 | -/gpt-6.1-sol@high | 0 | 2 | TODO | |
+| N11 | whole-plan acceptance | check | N15 | -/gpt-6.1-sol@high | 0 | 1 | TODO | |
 | N12 | restrict initial-policy dispatch to planner Outline | exec | N10 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
 | N13 | anchor review independence to completed execution | exec | N12 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
 | N14 | move plan and config filesystem IO into commands | exec | N13 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 0 | DONE | |
+| N15 | complete runtime function annotations | exec | N14 | gpt-6.1-sol@high/gpt-6.1-sol@high | 1 | 1 | DONE | |
 
 ### Planned node scope
 

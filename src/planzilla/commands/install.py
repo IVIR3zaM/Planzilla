@@ -9,6 +9,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -43,7 +44,7 @@ _AGENT_DIRS = {
 class InstallError(Exception):
     """A failure with the exit code it maps to."""
 
-    def __init__(self, message: str, code: int):
+    def __init__(self, message: str, code: int) -> None:
         super().__init__(message)
         self.code = code
 
@@ -77,7 +78,7 @@ def read_version(pkg_dir: Path) -> str:
     return match.group(1)
 
 
-def _source_files(root: Path):
+def _source_files(root: Path) -> Iterator[tuple[str, Path]]:
     """Yield (posix path relative to root, file path), skipping bytecode caches."""
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
