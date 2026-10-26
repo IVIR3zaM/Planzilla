@@ -67,7 +67,7 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | N02 | honor explicit low pins and fix facts help | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | record Copilot CLI evidence in docs/COPILOT.md | exec | N01 | opus/sonnet | 1 | 0 | DONE | |
 | N04 | deliver roles through the Copilot CLI | exec | N02,N03 | sonnet/opus | 1 | 1 | DONE | |
-| N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 0 | 0 | TODO | |
+| N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 1 | 0 | DONE | |
 | N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 0 | 0 | TODO | |
 | N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 0 | 0 | TODO | |
 | N08 | bump to 0.3.0 and re-vendor | exec | N07 | haiku/- | 0 | 0 | TODO | |
@@ -408,5 +408,12 @@ plan: REPLANNED
 exec: DONE · 1268 passed
 - Copilot CLI delivery in runner.py/run.py with fake-executable tests and e2e stubs; FORMAT §4/§9/§14 and COPILOT.md state each CLI failure as exit 3 with one error line
 - Bare copilot with an effort and copilot::opus|sonnet|haiku exit 3 before any subprocess
+check: PASS 3/3
+verify: PASS
+
+### N05 try 1 · 2026-10-26
+exec: DONE · 1270 passed
+- README: Copilot described as harness and delivery route (entrypoint, auth check, bare model, effort, dispatch for copilot::opus, no visual agent), links docs/COPILOT.md; stale disabled claims removed
+- tests/kit/test_readme.py: new tests for the above; dropped the old 'external Copilot remains disabled' pin
 check: PASS 3/3
 verify: PASS

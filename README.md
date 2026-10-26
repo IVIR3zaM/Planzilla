@@ -125,23 +125,45 @@ Honor host permissions and sandbox rules; never add approval/sandbox bypass flag
 
 ### Copilot CLI
 
-The installed `.github/agents/plz-planner.agent.md`, `plz-executor.agent.md` and `plz-verifier.agent.md`
-are thin profiles bound to the shared `.planzilla/roles/` prompts. They read `AGENTS.md` and set
-`include-custom-instructions: true`, preserving repository instruction inheritance. They ship no model pin
-and no visual profile. Shared roles own boundaries, logging and the one-line reply protocol.
+Copilot is fully supported two ways. Details on flags, models, auth and the evidence behind them are in
+[docs/COPILOT.md](docs/COPILOT.md).
+
+**Copilot as a harness.** You work inside Copilot CLI and it coordinates a plan through the skills, `AGENTS.md`
+and the `.github/agents` profiles. The installed `plz-planner.agent.md`, `plz-executor.agent.md` and
+`plz-verifier.agent.md` are thin profiles bound to the shared `.planzilla/roles/` prompts. They read `AGENTS.md`
+and set `include-custom-instructions: true`, preserving repository instruction inheritance. They ship no model
+pin and no visual profile. Shared roles own boundaries, logging and the one-line reply protocol.
 
 Before native dispatch, verify callable delegation and the effective model/effort controls. Check profile
 selection and shadowing, `modelPolicy: required` where supported, session overrides and `reasoningEffort`.
 Check session startup and per-call delegation precedence separately: a session flag does not necessarily
-override a profile, and another client's field names are not evidence. A proven native-only Copilot route
-can work without an external executable. In this release external Copilot remains disabled; fixtures and
-installed profiles prove neither live external access nor browser availability.
+override a profile, and another client's field names are not evidence. Installed profiles prove no browser
+availability.
+
+**Copilot as a delivery route.** Any orchestrator, whatever its own harness, can hand a role to Copilot CLI
+headlessly with `plz run <role> copilot::<model> '<line>'`, or through `plz dispatch` (see
+[Dispatch](#dispatch-and-runner-boundaries)). You install the Copilot CLI and log in yourself; Planzilla never installs,
+updates or logs in to it. The entrypoint is `copilot` when it is on `PATH`, otherwise `gh copilot --`, used only
+when `gh` is on `PATH` and already holds its downloaded Copilot CLI (so Planzilla never triggers a download). With
+neither, `plz run` exits 3.
+
+- Auth check: Copilot has no status command, so the prompt call itself is the check. A logged-out CLI reports
+  `error: copilot is not logged in; run copilot login` (`gh copilot -- login` on the `gh` route); run that
+  yourself.
+- A bare model, `copilot::<model>`, runs with that exact model. `@<effort>` maps to `--reasoning-effort`, and the
+  effort needs an exact model id that supports it. A bare `copilot` selects Copilot's default model, which
+  accepts no effort, so `copilot@high` exits 3 before any subprocess.
+- `copilot::opus`, `copilot::sonnet` and `copilot::haiku` are portable intent, not model ids: they go through
+  `plz dispatch`, which resolves them to an exact Copilot model; `plz run` exits 3 for them.
+- Copilot has no visual agent: a Copilot delivery never carries browser evidence, so `[visual]` work needs a
+  different, proven surface.
 
 ## Using multiple providers
 
-Planzilla supports allowed Claude, Codex and native Copilot delivery (FORMAT §14). For external Claude/Codex,
-install the appropriate CLI and explicitly log in if needed (`claude auth login` or `codex login`). Check
-noninteractive status only for permitted routes (`claude auth status` or `codex login status`). Billing follows
+Planzilla supports allowed Claude, Codex and Copilot delivery (FORMAT §14). Install the appropriate CLI and
+explicitly log in if needed (`claude auth login`, `codex login`, or `copilot login` / `gh copilot -- login`).
+Check noninteractive status only for permitted routes (`claude auth status` or `codex login status`); Copilot has
+no status command, so its prompt call is the auth check (see [docs/COPILOT.md](docs/COPILOT.md)). Billing follows
 the account used by each delivery. CLI presence and login alone prove no model support, usable reply or quota.
 
 Repository `providers` supplies defaults; a plan may replace that list and restrict `harnesses`. Establish
@@ -219,7 +241,8 @@ never delivery, authentication or quota identity:
 | `fable`, `claude-*` | `claude`, `copilot` | `low` · `medium` · `high` · `max` |
 | `gpt-*` | `codex`, `copilot` | `low` · `medium` · `high` · `xhigh` · `max` |
 | bare `claude` | `claude` | `low` · `medium` · `high` · `max` |
-| bare `codex` or `copilot` | its named route | `low` · `medium` · `high` · `xhigh` · `max` |
+| bare `codex` | its named route | `low` · `medium` · `high` · `xhigh` · `max` |
+| bare `copilot` | its named route | `none` · `minimal` · `low` · `medium` · `high` · `xhigh` · `max` |
 
 `opus`, `sonnet` and `haiku` express portable intent, valid even with Codex-only providers. A versioned ID
 pins a model, `@high` pins effort, and `copilot::` pins delivery independently. For example,
@@ -286,9 +309,10 @@ an executor phase use a standalone verifier invocation.
 Legacy `planzilla run <role> <model> <line>` keeps direct Claude/Codex CLI behavior and the caller's working
 directory; capability-aware dispatch uses the plan repository. Direct `run` accepts supported exact
 Claude/Codex selections, but does not resolve intent against host capabilities or enforce plan policy.
-Do not send unresolved portable or qualified intent to a legacy prefix runner. External Copilot
-execution is disabled even if facts claim CLI support. External Claude/Codex calls relay the final role line;
-an `error: …` reply is a crash.
+Do not send unresolved portable or qualified intent to a legacy prefix runner: `copilot::opus` goes through
+`plz dispatch`, while `plz run <role> copilot::<model> '<line>'` takes an exact Copilot model id. External
+Copilot runs the Copilot CLI headlessly (see [docs/COPILOT.md](docs/COPILOT.md)). External Claude/Codex/Copilot
+calls relay the final role line; an `error: …` reply is a crash.
 
 Keep an owned job handle and per-role temporary output/error/status. Continue waiting for a quiet pending
 job within host wait limits (at most five minutes per call, shorter where required); silence is not a hang
@@ -311,8 +335,8 @@ Every node ends in a list of criteria, each tagged by who checks it (FORMAT §6)
 | `[human]` | you, in one batched round; used only when no other tag can check it |
 
 Visual verification requires usable navigation and snapshot/image operations on the selected native surface,
-under effective policy and actual callable controls (FORMAT §14). Codex may expose browser tools; Copilot
-profiles establish no browser capability. An installed browser, login window or tool name is insufficient.
+under effective policy and actual callable controls (FORMAT §14). Codex may expose browser tools; Copilot has
+no visual agent and its profiles establish no browser capability. An installed browser, login window or tool name is insufficient.
 The researched host has no proven Copilot browser surface. Never route visual verification through text-only
 `plz run`. Without a proven surface ask the planner to use a valid `[smoke]` or `[human]` criterion or replan.
 Legacy `lint` visual checks remain conservative static checks of configured harness/native models; they do
@@ -325,8 +349,8 @@ On a repo's first run, `plz-new-plan` detects (FORMAT §8):
 - the verify commands and other defaults, from `pyproject.toml`, `package.json`, `Makefile`, `AGENTS.md` and
   `CLAUDE.md`;
 - permitted routes' CLI presence and noninteractive auth status when needed (`claude auth status`,
-  `codex login status`); excluded providers receive no probes, and Copilot needs a demonstrated supported
-  noninteractive operation;
+  `codex login status`); excluded providers receive no probes. Copilot has no status command, so its auth is
+  checked only by a real delivery's prompt call, never by a separate probe;
 - the actual harness and callable tools separately from configured `harness`; environment hints such as
   `CLAUDECODE=1` do not establish callable controls.
 
