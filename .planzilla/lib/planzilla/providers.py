@@ -7,7 +7,7 @@ PROVIDERS = ("claude", "codex", "copilot")
 _EFFORTS = {
     "claude": ("low", "medium", "high", "max"),
     "codex": ("low", "medium", "high", "xhigh", "max"),
-    "copilot": ("low", "medium", "high", "xhigh", "max"),
+    "copilot": ("none", "minimal", "low", "medium", "high", "xhigh", "max"),
 }
 PORTABLE_ALIASES = ("opus", "sonnet", "haiku")
 MODEL_ROLES = ("planner", "exec", "verify")

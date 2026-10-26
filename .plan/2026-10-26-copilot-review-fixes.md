@@ -70,7 +70,7 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 1 | 0 | DONE | |
 | N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 1 | 2 | DONE | |
 | N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 1 | 0 | DONE | |
-| N08 | bump to 0.3.0 and re-vendor | exec | N07 | haiku/- | 0 | 0 | TODO | |
+| N08 | bump to 0.3.0 and re-vendor | exec | N07 | haiku/- | 1 | 0 | DONE | |
 | N09 | whole-plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
 
 ## N01 preflight
@@ -459,3 +459,9 @@ exec: DONE · 1305 passed
 - Added the D13 changelog rule bullet to AGENTS.md outside the managed block; 0.3.0 dated today
 check: PASS 3/3
 verify: PASS
+
+### N08 try 1 · 2026-10-26
+exec: DONE · tests: 1305 passed, 1 skipped
+- Bumped __version__ to 0.3.0 and expected version test first; re-vendored with planzilla install (second run 0 added, 0 changed)
+- Kept README v0.2.0 tag references per brief; no tracked files deleted, AGENTS.md unchanged
+check: PASS 4/4

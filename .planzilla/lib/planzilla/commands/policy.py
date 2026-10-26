@@ -8,12 +8,14 @@ from planzilla.commands._common import (
     LockTimeout,
     ResolveError,
     fail,
+    load_config,
+    load_plan,
     plan_lock,
     resolve_plan,
     write_atomic,
 )
-from planzilla.config import load_config, plan_policy
-from planzilla.plan import PlanError, load_plan, update_policy
+from planzilla.config import plan_policy
+from planzilla.plan import PlanError, update_policy
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:

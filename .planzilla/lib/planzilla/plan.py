@@ -1,7 +1,4 @@
-"""Plan model: parse S/M plan files and L plan directories into dataclasses (FORMAT §2-§7).
-
-Parsing is pure (`parse_*` take text); `find_plans`, `load_*` and `save_graph` wrap the file IO.
-"""
+"""Pure plan models, parsing, rendering and lexical paths (FORMAT §2-§7)."""
 
 import re
 from dataclasses import dataclass, field
@@ -199,53 +196,7 @@ class NodePaths:
     runs: Path | None
 
 
-# --- files -----------------------------------------------------------------
-
-
-def _read(path: Path) -> str:
-    return path.read_bytes().decode("utf-8")
-
-
-def find_plans(repo: Path) -> list[Path]:
-    """Plans in `<repo>/.plan/`: L directories and S/M `.md` files, sorted by name."""
-    plan_dir = repo / ".plan"
-    if not plan_dir.is_dir():
-        return []
-    found = []
-    for path in plan_dir.iterdir():
-        if path.is_dir() and PLAN_NAME.fullmatch(path.name):
-            found.append(path)
-        elif path.is_file() and path.suffix == ".md" and PLAN_NAME.fullmatch(path.stem):
-            found.append(path)
-    return sorted(found, key=lambda p: p.name)
-
-
-def load_plan(path: Path) -> Plan:
-    """Load an L plan directory or an S/M plan file."""
-    graph_file = path / "plan.md" if path.is_dir() else path
-    if not graph_file.is_file():
-        raise PlanError(graph_file, 1, "plan file not found")
-    return parse_plan(_read(graph_file), path, graph_file)
-
-
-def load_brief(plan: Plan, node_id: str) -> Brief | None:
-    """The node's brief, or None when it is not written yet (just-in-time briefing)."""
-    node = plan.node(node_id)
-    if plan.is_dir:
-        file = plan.path / "nodes" / f"{node_id}.md"
-        if not file.is_file():
-            return None
-        lines = _read(file).split("\n")
-        return parse_brief(lines, 1, file, node, "# ")
-    lines = plan.text.split("\n")
-    for index, line in enumerate(lines):
-        match = _NODE_HEADING_RE.fullmatch(line[3:]) if line.startswith("## ") else None
-        if match and match.group(1) == node_id:
-            end = index + 1
-            while end < len(lines) and not lines[end].startswith("## "):
-                end += 1
-            return parse_brief(lines[index:end], index + 1, plan.graph_file, node, "## ")
-    return None
+# --- paths -----------------------------------------------------------------
 
 
 def node_paths(plan: Plan, node_id: str) -> NodePaths:
@@ -259,16 +210,6 @@ def node_paths(plan: Plan, node_id: str) -> NodePaths:
         plan.path / "log" / f"{node_id}.md",
         plan.path / "runs" / node_id,
     )
-
-
-def save_graph(plan: Plan) -> Plan:
-    """Rewrite only the changed (or added) Graph rows, atomically; return the reloaded plan."""
-    text = render_graph(plan)
-    if text != plan.text:
-        tmp = plan.graph_file.with_name(plan.graph_file.name + ".tmp")
-        tmp.write_bytes(text.encode("utf-8"))
-        tmp.replace(plan.graph_file)
-    return parse_plan(text, plan.path, plan.graph_file)
 
 
 # --- plan parsing ----------------------------------------------------------
@@ -591,6 +532,20 @@ def _heading_key(heading: str) -> str:
 
 
 # --- brief parsing ---------------------------------------------------------
+
+
+def parse_inline_brief(plan: Plan, node_id: str) -> Brief | None:
+    """Parse a node's S/M brief from supplied plan text, or None if not written yet."""
+    node = plan.node(node_id)
+    lines = plan.text.split("\n")
+    for index, line in enumerate(lines):
+        match = _NODE_HEADING_RE.fullmatch(line[3:]) if line.startswith("## ") else None
+        if match and match.group(1) == node_id:
+            end = index + 1
+            while end < len(lines) and not lines[end].startswith("## "):
+                end += 1
+            return parse_brief(lines[index:end], index + 1, plan.graph_file, node, "## ")
+    return None
 
 
 def parse_brief(lines: list[str], first: int, file: Path, node: Node, prefix: str) -> Brief:
