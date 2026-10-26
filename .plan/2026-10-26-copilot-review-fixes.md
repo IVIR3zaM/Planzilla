@@ -68,7 +68,7 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | N03 | record Copilot CLI evidence in docs/COPILOT.md | exec | N01 | opus/sonnet | 1 | 0 | DONE | |
 | N04 | deliver roles through the Copilot CLI | exec | N02,N03 | sonnet/opus | 1 | 1 | DONE | |
 | N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 1 | 0 | DONE | |
-| N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 0 | 0 | TODO | |
+| N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 1 | 2 | DONE | |
 | N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 0 | 0 | TODO | |
 | N08 | bump to 0.3.0 and re-vendor | exec | N07 | haiku/- | 0 | 0 | TODO | |
 | N09 | whole-plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
@@ -228,43 +228,44 @@ Done when:
 - C4 [cmd] `uv run pytest -q`
 
 ## N06 readable skills with a simple dispatch rule
-Do: Rewrite both skill sources so a fresh agent can follow them: multi-line step lists (plz-run-plan Loop steps
-3-5, plz-new-plan's numbered steps), the long Dispatch contract replaced by the D5 rule plus `plz dispatch` as an
-optional advanced path with a shipped example facts file (D6, D7), and Copilot stated as harness and external
-delivery route (D4) instead of "external Copilot … remain disabled". Update README's dispatch section, FORMAT
-§11/§14, docs/COPILOT.md where it cites the skills, and the kit tests that pinned the old wording.
-Context: D5 as in Decisions; native tokens src/planzilla/providers.py:18,131; a `copilot::<id>` line is not
-  native, so Claude Code sends it to `plz-run`. Old readable wording: `git show 02f03d3:src/planzilla/kit/skills/plz-run-plan/SKILL.md`.
-  Advanced: `plz dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>` for qualified
-  portable tokens `plz run` refuses (src/planzilla/runner.py:35). Skills never require
-  `planzilla.commands.dispatch.dispatch` or `NativeAdapter`; FORMAT §9 keeps that API.
-  Keep: D9 allowlist first (actual coordinator vs plan `harnesses`, intersect effective `providers`, never probe
-  excluded providers); pins never silently relaxed; one-line protocol; `plz set` before dependent dispatch;
-  Phase policy; the job-lifecycle phrases shared with plz-run.md (tests/kit/test_dispatch_guidance.py:34-60).
-  Replace Copilot phrases at both SKILL.md:54-55 and plz-new-plan :17 (name docs/COPILOT.md's auth check),
-  pinned by tests/kit/test_dispatch_guidance.py:96-110. D6/D7 as in Decisions; schema
-  src/planzilla/resolver.py:20-58, loaded through src/planzilla/commands/dispatch.py:367-387. D8: ≤80 lines
-  (tests/kit/test_skills.py:49-51). README and FORMAT §14 lead with the D5 rule, then `plz dispatch` with the
-  example; FORMAT §11 kit list adds the template.
+Do: Rewrite both skill sources as short step lists a fresh agent can follow that meet D8, trimming prose until
+each fits 80 lines while keeping every phrase the kit tests pin. The Dispatch contract becomes the D5 rule plus
+`plz dispatch` as an optional advanced path with the example facts file (D6, D7); Copilot is a harness and
+delivery route (D4). `plz-run` accepts route-qualified models. Sync README, FORMAT §11/§14, docs/COPILOT.md.
+Context: D8: each SKILL.md at most 80 lines; every line after the front matter at most 120 characters; each Loop
+  sub-case on its own `   - ` line; a `## Dispatch contract` section by that name, identical in both skills.
+  D5: Claude Code dispatches the named agent natively with model `<m>` from the `plz next`/`plz set` line when
+  `<m>` is native (opus, sonnet, haiku, fable; no `@<effort>`, no `::`; src/planzilla/providers.py:18,131), else
+  `plz-run`, which runs `plz run <role> <m> '<line>'`; Codex and Copilot run one `plz run` background shell job
+  per line; `plz-visual` runs only natively in Claude Code, else `<id>: cannot dispatch <agent> <m>`; `plz
+  dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>` is optional, for cross-route
+  or independent review and qualified portable tokens `plz run` refuses (src/planzilla/runner.py:35). D4: `plz
+  run <role> copilot::<model>[@<e>]` is a delivery route; name docs/COPILOT.md's auth check (:96-110). D6/D7:
+  `src/planzilla/kit/templates/capabilities.json` ships as `.planzilla/templates/capabilities.json` with CLI-mode
+  claude, codex, copilot records, placeholder evidence, `"enabled": false`. plz-run.md:11-12 model rule gains
+  `:`; keep its role check, `error: bad Run input`, quoting (:18-19). Keep: allowlist first (actual coordinator
+  vs plan `harnesses`, intersect `providers`, never probe excluded); pins never relaxed; one-line protocol; `plz
+  set` before dependent dispatch; Phase policy; job-lifecycle phrases (tests/kit/test_dispatch_guidance.py:42-70).
+  Facts schema src/planzilla/resolver.py:20-58, loaded at src/planzilla/commands/dispatch.py:367-387.
 Read: `src/planzilla/kit/`, `tests/kit/`, `README.md`, `docs/FORMAT.md`, `docs/COPILOT.md`
 Write: `src/planzilla/kit/skills/plz-run-plan/SKILL.md`, `src/planzilla/kit/skills/plz-new-plan/SKILL.md`,
-  `src/planzilla/kit/templates/capabilities.json`, `tests/kit/test_skills.py`, `tests/kit/test_dispatch_guidance.py`,
+  `src/planzilla/kit/agents/claude/plz-run.md`, `src/planzilla/kit/templates/capabilities.json`,
+  `tests/kit/test_skills.py`, `tests/kit/test_dispatch_guidance.py`, `tests/kit/test_roles.py`,
   `tests/kit/test_readme.py`, `tests/commands/test_dispatch.py`, `README.md`, `docs/FORMAT.md`, `docs/COPILOT.md`
-Test first: kit tests assert D8, the D5 rule in both skills (native in Claude Code, `plz-run`, `plz run` shell job
-  on Codex/Copilot, `plz-visual` stop line), `plz run <role> copilot::<model>` as a delivery route, `plz dispatch`
-  with `.planzilla/templates/capabilities.json`, no `planzilla.commands.dispatch.dispatch`/`NativeAdapter`/
-  `run_selection` in either skill, the allowlist phrases kept, and the example loading into claude, codex and
-  copilot Capability records, all with `enabled` false.
+Test first: tests/kit/test_skills.py asserts every D8 clause (80 lines, 120 characters after the front matter,
+  Loop sub-cases, identical `## Dispatch contract`); kit tests pin D5, D4 and D6/D7 above, the C2 names absent,
+  plz-run.md admitting `:`, and the example loading through `--facts` as three disabled records.
 Done when:
-- C1 [cmd] `uv run pytest -q tests/kit tests/commands/test_dispatch.py`
-- C2 [cmd] `! grep -nE 'planzilla\.commands\.dispatch\.dispatch|NativeAdapter|Copilot (and browser )?remains? disabled' src/planzilla/kit/skills/*/SKILL.md`
-- C3 [review] Following plz-run-plan alone, an agent in Claude Code, Codex or Copilot can dispatch every `plz set`
-  line: when to go native, when and how to use `plz-run`/`plz run` (with the shell-job lifecycle, Copilot tokens
-  included), what to do for `plz-visual` and undispatchable lines, and when `plz dispatch` with the example
-  applies; Loop steps 3-5 list each case on its own line; both skills meet D8 and share `## Dispatch contract`.
+- C1 [cmd] `python3 -c "import pathlib as p;fs=sorted(p.Path('src/planzilla/kit/skills').glob('*/SKILL.md'));L={f:f.read_text('utf-8').splitlines() for f in fs};bad=[(str(f),i) for f in fs for i,l in enumerate(L[f],1) if len(L[f])>80 or i>L[f].index('---',1)+1 and len(l)>120];assert len(fs)==2 and not bad,bad[:4]"`
+- C2 [cmd] `! grep -nE 'planzilla\.commands\.dispatch\.dispatch|NativeAdapter|run_selection|Copilot (and browser )?remains? disabled' src/planzilla/kit/skills/*/SKILL.md`
+- C3 [review] Following plz-run-plan alone, an agent in Claude Code, Codex or Copilot can dispatch every
+  `plz set` line per D5 as stated in Context (native, `plz-run`, `plz run` shell job and its lifecycle,
+  `copilot::<id>[@<e>]` accepted by plz-run.md, the `plz-visual` stop line, `plz dispatch` with the example);
+  both skills meet every D8 clause in Context: at most 80 lines, no line after the front matter over 120
+  characters, Loop steps 3-5 one sub-case per `   - ` line, identical `## Dispatch contract`.
 - C4 [review] The example holds CLI-mode claude, codex and copilot records with placeholder evidence and
-  `"enabled": false`, a test loads it through the `--facts` parsing, and README.md, docs/FORMAT.md §11/§14 and
-  docs/COPILOT.md give the same default rule and advanced path and name `.planzilla/templates/capabilities.json`.
+  `"enabled": false`, a test loads it through `--facts`; README.md, docs/FORMAT.md §11/§14 (both leading with
+  D5) and docs/COPILOT.md give the same rule and advanced path and name `.planzilla/templates/capabilities.json`.
 - C5 [cmd] `uv run pytest -q`
 
 ## N07 add the changelog and its rule
@@ -415,5 +416,39 @@ verify: PASS
 exec: DONE · 1270 passed
 - README: Copilot described as harness and delivery route (entrypoint, auth check, bare model, effort, dispatch for copilot::opus, no visual agent), links docs/COPILOT.md; stale disabled claims removed
 - tests/kit/test_readme.py: new tests for the above; dropped the old 'external Copilot remains disabled' pin
+check: PASS 3/3
+verify: PASS
+
+### N06 try 1 · 2026-10-26
+exec: BLOCKED · src/planzilla/kit/agents/claude/plz-run.md (outside Write) accepts only letters, digits, '.', '_', '@', '-' in the model, so the D5 route copilot::<id> -> plz-run answers 'error: bad Run input'; add plz-run.md (allow '::') to Write. Rest of N06 is in the tree: both skills, template, docs, tests; uv run pytest -q passes (1301)
+
+### N06 replan 1 · 2026-10-26
+plan: REPLANNED
+- cause: exec BLOCKED, src/planzilla/kit/agents/claude/plz-run.md:11-12 limits the model to letters, digits, '.', '_', '@', '-', so the D5 route copilot::<id> -> plz-run answers 'error: bad Run input', and that file was outside Write
+- brief adds plz-run.md (admit ':' in the model rule, keep role check and quoting) and tests/kit/test_roles.py to Write, with a test-first pin and C3 checking plz-run.md accepts copilot::<id>[@<e>]; rest of the brief, model and C1-C5 unchanged
+
+### N06 try 1 · 2026-10-26
+resume: rerun at try 1; partial edits of this try may be in the tree
+exec: DONE · 1302 passed, 1 skipped
+- Skills rewritten as step lists sharing one Dispatch contract (D5 rule, plz dispatch advanced path with shipped capabilities.json example, Copilot as harness and delivery route); README, FORMAT 11/14, COPILOT.md match
+- plz-run.md model rule now admits colon so copilot::<id>[@<effort>] passes; role check, bad Run input and single-quoting kept; test_roles asserts it
+- Example facts file: CLI claude/codex/copilot records with placeholder evidence, all enabled false; test loads it through dispatch --facts and expects exit 3
+check: PASS 3/3
+verify: FAIL C3
+- C3 src/planzilla/kit/skills/plz-run-plan/SKILL.md, src/planzilla/kit/skills/plz-new-plan/SKILL.md - not evidenced: the criterion requires both skills to meet D8, but the verify brief does not state D8, so conformance cannot be judged cold; every other C3 clause holds (native/plz-run/shell-job rule, copilot::<id>[@<e>] in plz-run.md, plz-visual and undispatchable stop, plz dispatch advanced path, Loop steps 3-5 one case per line, identical ## Dispatch contract) - expected: D8 stated in the criterion itself so it can be verified
+
+### N06 try 2 · 2026-10-26
+exec: BLOCKED · finding C3 needs D8 stated in the criterion text, a plan edit outside Write; the work itself passes (1302 passed, both skills at most 80 lines, tests/kit/test_skills.py now labels the 80-line test as D8)
+
+### N06 replan 2 · 2026-10-26
+plan: REPLANNED
+- cause: verify could not judge D8 cold because C3 did not state it, and the tree in fact breaks D8: both skills have many lines after the front matter over 120 characters (up to 629), and wrapped they need about 115 lines against the 80-line limit
+- brief restates D8 and D5 in Context, adds C1 as a cmd that checks 80 lines and 120 characters per skill (fails on the current tree), has C3 spell out every D8 clause, and asks for trimming prose and a D8 width test first; Write, model and the other criteria unchanged
+
+### N06 try 1 · 2026-10-26
+exec: DONE · 1305 passed, 1 skipped
+- Both SKILL.md rewrapped to 80 lines, body lines at most 120 chars, Loop sub-cases on own 3-space lines, identical shorter Dispatch contract (D5 rule, Copilot route, plz dispatch with the example)
+- New D8 tests (120 chars, 3-space Loop sub-cases) and FORMAT 11 leads with the dispatch rule and names .planzilla/templates/capabilities.json
+- Dropped blank lines before headings and condensed prose to fit 80 lines while keeping every pinned phrase
 check: PASS 3/3
 verify: PASS

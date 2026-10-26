@@ -48,7 +48,17 @@ def test_every_plz_command_is_registered(name: str) -> None:
 
 @pytest.mark.parametrize("name", SKILLS)
 def test_at_most_80_lines(name: str) -> None:
+    """D8: each shipped SKILL.md stays at most 80 lines."""
     assert len(skill_text(name).splitlines()) <= 80
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_body_lines_fit_120_characters(name: str) -> None:
+    """D8: every line after the front matter is at most 120 characters."""
+    lines = skill_text(name).splitlines()
+    body = lines[lines.index("---", 1) + 1 :]
+    long = [line[:40] for line in body if len(line) > 120]
+    assert not long, long
 
 
 @pytest.mark.parametrize("name", SKILLS)
@@ -77,21 +87,16 @@ def test_run_plan_dispatches_every_agent() -> None:
         assert agent in text
 
 
-def test_run_plan_uses_external_adapter_only_with_supported_delivery() -> None:
+def test_run_plan_uses_external_adapter_by_the_dispatch_rule() -> None:
     text = skill_text("plz-run-plan")
     assert re.search(r"\bplz-run\b(?!-)", text), "plz-run-plan must name the plz-run adapter"
     assert "plz run" in text
-    assert "demonstrated entrypoint and usable reply" in text
-    assert "never send them to a legacy prefix runner" in text
+    assert "plz dispatch" in text
 
 
-def test_run_plan_routes_by_actual_controls_instead_of_configured_harness() -> None:
+def test_run_plan_routes_by_the_actual_harness_instead_of_configured_harness() -> None:
     text = skill_text("plz-run-plan")
-    assert "actual callable tool schema separately from configured harness" in text
-    assert "configuration is not tool evidence" in text
-    assert (
-        "Record original request, actual/configured harness and resolved model/effort/route" in text
-    )
+    assert "By the harness you actually run in, whatever config `harness` says" in text
 
 
 def test_new_plan_checks_policy_before_allowed_auth_detection() -> None:
@@ -115,3 +120,50 @@ def test_new_plan_never_stores_the_raw_prompt() -> None:
     assert "request.md" not in text
     assert "intent.md" in text
     assert "## Intent" in text
+
+
+def section_lines(name: str, heading: str) -> list[str]:
+    text = skill_text(name).split(f"## {heading}\n", 1)[1].split("\n## ", 1)[0]
+    return [line.strip() for line in text.splitlines()]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "- `brief`:",
+        "- `exec`:",
+        "- `verify`:",
+        "- `replan`:",
+        "- `check`:",
+        "- executor `DONE",
+        "- executor `BLOCKED",
+        "- verifier `PASS",
+        "- verifier `FAIL",
+        "- planner `BRIEFED",
+        "- planner `ASK",
+        "- Crash or malformed reply",
+        "- `<id> D7:",
+        "- `<id> human C5:",
+        "- `<id> gate:",
+        "- `<id> blocked:",
+    ],
+)
+def test_run_plan_loop_lists_each_case_on_its_own_line(case: str) -> None:
+    """D8: each Loop sub-case of steps 3-5 sits on its own `   - ` line."""
+    text = skill_text("plz-run-plan").split("## Loop\n", 1)[1].split("\n## ", 1)[0]
+    assert any(line.startswith("   " + case) for line in text.splitlines()), case
+
+
+@pytest.mark.parametrize("tier", ["- S:", "- M:", "- L:"])
+def test_new_plan_lists_each_tier_on_its_own_line(tier: str) -> None:
+    lines = section_lines("plz-new-plan", "1. Clarify first, before any graph (req 6)")
+    assert any(line.startswith(tier) for line in lines), tier
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_numbered_steps_hold_no_inline_lists(name: str) -> None:
+    """Readable steps: a list item never hides another one behind ` - ` or ` · ` inline."""
+    body = skill_text(name).split("\n---\n", 1)[1]
+    for line in body.splitlines():
+        item = line.strip()[2:]
+        assert " - `" not in item and "  · `" not in item, line

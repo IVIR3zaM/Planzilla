@@ -8,8 +8,8 @@ You relay one step to `.planzilla/plz run`. Never read or edit repository files 
 manage only this invocation's per-role temporary output, error and status files.
 Input: `Run: <role> <model> · <line>`: the first word after `Run:` is the role, the second the model, and
 everything after the first ` · ` is the line, kept verbatim.
-The role must be planner, executor or verifier and the model only letters, digits and `.`, `_`, `@`, `-`;
-otherwise reply `error: bad Run input` and stop.
+The role must be planner, executor or verifier and the model only letters, digits and `.`, `_`, `@`, `-`, `:`
+(so `copilot::<id>[@<effort>]` passes); otherwise reply `error: bad Run input` and stop.
 
 1. Use the host's supported background-job controls, retaining the supported owned job handle returned by
    Bash. Require callable wait and cancellation controls (TaskOutput and TaskStop); if unavailable, return

@@ -695,11 +695,19 @@ kit/templates/plan.md          L plan.md
 kit/templates/intent.md        L intent.md
 kit/templates/node.md          L brief
 kit/templates/config.md        .plan/config.md with every §8 key and its default
+kit/templates/capabilities.json  example `dispatch --facts` file: CLI-mode claude, codex, copilot records, all disabled
 kit/agents/claude/plz-planner.md  kit/agents/claude/plz-executor.md
 kit/agents/claude/plz-verifier.md  kit/agents/claude/plz-visual.md  kit/agents/claude/plz-run.md
 kit/skills/plz-new-plan/SKILL.md  kit/skills/plz-run-plan/SKILL.md
 kit/AGENTS-block.md            text placed between the AGENTS.md markers
 ```
+
+**Which adapter runs a line (§14 dispatch rule).** In Claude Code, `<m>` is `opus`, `sonnet`, `haiku` or `fable`
+without `@<effort>`: the named agent runs natively; any other `<m>` (`copilot::<id>[@<effort>]` too) goes to
+`plz-run`. In Codex or Copilot each line runs `plz run <role> <m> '<line>'` as a shell job. `plz-visual` never goes
+through `plz run`; it runs only natively in Claude Code. The optional advanced path is `plz dispatch … --facts
+<file>` (§9), where `<file>` is a copy of `.planzilla/templates/capabilities.json` (installed from
+`kit/templates/capabilities.json`, every record disabled until edited).
 
 Role prompts are plain, harness-neutral files. A Claude Code adapter is a thin agent file with front matter
 (`name`, `description`, `tools`, optional `model`) whose body says to follow `.planzilla/roles/<role>.md`;
@@ -811,6 +819,30 @@ outputs and one-line agent replies; between agents it passes `<plan>` and ids. I
 
 Agents read their input with `brief` (executor: default mode; verifier: `--verify`) and write their log entry
 with `log` before replying. The planner runs `lint` after writing and edits Graph rows only through `set`.
+
+**Dispatch rule.** Both skills share one `## Dispatch contract`. Allowlist first: the actual coordinator is
+checked against optional plan `harnesses` and delivery is intersected with effective `providers` before defaults,
+aliases or auth probes; excluded providers are never probed. Then each set line's agent and model `<m>` go by the
+harness the orchestrator actually runs in, whatever config `harness` says (`<role>` is planner, executor or
+verifier):
+
+- Claude Code, `<m>` is `opus`, `sonnet`, `haiku` or `fable` without `@<effort>`: dispatch the agent natively.
+- Claude Code, any other `<m>` (`copilot::<id>` too): dispatch `plz-run` with `Run: <role> <m> · <line>`.
+- Codex or Copilot: run `plz run <role> <m> '<line>'` as a shell job (owned job handle, its own `out`/`err`/`rc`;
+  the reply is the last non-blank line of `out` on rc 0, else of `err`).
+- `plz-visual` never goes through `plz run`: native in Claude Code with a native `<m>`; anywhere else the run
+  stops with `<id>: cannot dispatch plz-visual <m>`.
+
+Copilot is both a harness and an external delivery route: from any host `plz run <role> copilot::<model> '<line>'`
+takes an exact Copilot model id (`docs/COPILOT.md`). Pins are never silently relaxed; a line no allowed route can
+dispatch stops with `<id>: cannot dispatch <agent> <m>` and one focused handoff.
+
+Advanced, optional: `plz run` refuses qualified portable tokens (`copilot::opus`). They resolve through
+`plz dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>` (§9), run as a shell job,
+where `<file>` is a copy of `.planzilla/templates/capabilities.json` whose placeholders are replaced by observed
+evidence and whose records are `"enabled": true` only for demonstrated routes. As shipped every record is
+disabled, so the example selects nothing. The skills never call the Python `dispatch` API or `NativeAdapter`;
+hosts that embed Planzilla may (§9).
 
 **Capability resolution contract.** N03 supplies token parsing, pure policy composition and effective-policy
 lint. N04 implements resolution from supplied capability facts; N08 propagates it through dispatch and the

@@ -880,3 +880,38 @@ def test_enabled_copilot_cli_record_reaches_the_fake_cli(
     assert argv[argv.index("--model") + 1] == "claude-opus-5"
     assert argv[argv.index("--reasoning-effort") + 1] == "high"
     assert "--deny-tool=shell(git push),shell(git commit)" in argv
+
+
+EXAMPLE_FACTS = Path(host.__file__).resolve().parents[1] / "kit" / "templates" / "capabilities.json"
+
+
+def test_shipped_example_facts_load_as_disabled_cli_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D7: the example parses through `--facts` and enables nothing until a person edits it."""
+    from planzilla import cli
+
+    plan = make_l(tmp_path, [row("N01", "RUNNING", model=f"{PIN}/{PIN}")], extra=POLICY)
+    seen: list[tuple[resolver.Capability, ...]] = []
+    real = host.dispatch
+
+    def spy(*args: object, **kwargs: object) -> int:
+        seen.append(kwargs["capabilities"])
+        return real(*args, **kwargs)
+
+    launched: list = []
+    monkeypatch.setattr(host, "dispatch", spy)
+    monkeypatch.setattr(run_cmd, "run_selection", lambda *args: launched.append(args) or 0)
+    argv = ["dispatch", str(plan), "executor", LINE, "--node", "N01"]
+    argv += ["--actual-harness", "codex", "--facts", str(EXAMPLE_FACTS)]
+    assert cli.main(argv) == 3
+    assert launched == []
+    caps = seen[0]
+    assert [c.route for c in caps] == ["claude", "codex", "copilot"]
+    for cap in caps:
+        assert isinstance(cap, resolver.Capability)
+        assert cap.mode == "cli" and cap.availability == "external_reply"
+        assert cap.enabled is False
+        assert cap.models and all(isinstance(m, resolver.Model) for m in cap.models)
+        assert cap.evidence and all("placeholder" in e for e in cap.evidence)
+        assert not (cap.navigation or cap.snapshot or cap.visual_evidence)

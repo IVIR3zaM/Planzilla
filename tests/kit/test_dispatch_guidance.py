@@ -60,29 +60,18 @@ def test_external_job_lifecycle_keeps_quiet_pending_jobs_and_owned_evidence(path
     )
 
 
-@pytest.mark.parametrize("name", SKILLS)
-def test_actual_codex_configured_claude_uses_evidence_and_enforceable_pins(name: str) -> None:
-    dispatch = section(name, "Dispatch contract")
-    require(
-        dispatch,
-        "actual Codex/configured Claude",
-        "surface the mismatch and reconcile through allowed proven controls",
-        "configuration is not tool evidence",
-        "Record original request, actual/configured harness and resolved model/effort/route",
-        "exposed `model` and `reasoning_effort` accepting the exact values",
-        'fork_turns: "none"',
-        "Neither prompt text nor inherited defaults enforces a pin; never invent fields",
-        "proven pin-preserving CLI with demonstrated entrypoint and usable reply",
-        "one focused handoff naming operation, failed constraint, "
-        "evidence and minimal alternatives",
-    )
+def first_bullet(text: str) -> str:
+    """The first bullet with its wrapped lines: the allowlist comes before anything else."""
+    lines = text.strip("\n").splitlines()
+    end = next((i for i in range(1, len(lines)) if lines[i].startswith("- ")), len(lines))
+    return "\n".join(lines[:end])
 
 
 @pytest.mark.parametrize("name", SKILLS)
 def test_restricted_plan_excludes_probes_before_selection(name: str) -> None:
     dispatch = section(name, "Dispatch contract")
     require(
-        dispatch.splitlines()[1],
+        first_bullet(dispatch),
         "actual coordinator against optional plan `harnesses` first",
         "intersect delivery with effective `providers` before defaults, aliases, "
         "capability selection or auth probes",
@@ -90,48 +79,79 @@ def test_restricted_plan_excludes_probes_before_selection(name: str) -> None:
         "plan providers/models override repository defaults without widening either allowlist",
     )
     require(section(name, "Phase policy"), "Before", "Dispatch contract", "resume")
+    require(section(name, "Phase policy"), "plz policy", "--harnesses", "--providers", "--models")
 
 
 @pytest.mark.parametrize("name", SKILLS)
-def test_native_only_copilot_does_not_enable_external_or_browser(name: str) -> None:
+def test_pins_survive_and_failures_are_classified(name: str) -> None:
     require(
         section(name, "Dispatch contract"),
-        "Copilot needs callable delegation, enforceable effective model/effort "
-        "and repo-instruction inheritance",
-        "profile precedence",
-        "modelPolicy: required",
-        "include-custom-instructions: true",
-        "reasoningEffort",
-        "session overrides and shadowing",
-        "native-only route works without an external executable",
-        "A catalog, executable, profile, mock or tool name proves no delivery",
-        "external Copilot and browser remain disabled on the researched host until demonstrated",
-        "Check session startup and per-call delegation precedence separately",
-    )
-
-
-@pytest.mark.parametrize("name", SKILLS)
-def test_aliases_and_qualified_pins_survive_pairwise_fallback(name: str) -> None:
-    require(
-        section(name, "Dispatch contract"),
-        "`opus`/`sonnet`/`haiku` are portable intent",
-        "Prefer supported native Claude/Copilot families",
-        "active Codex maps to supported Sol high/medium/low, low only when task policy permits",
-        "Preserve independent exact ID, effort and route pins",
-        "Resolve and check bare CLI defaults",
-        "`copilot::claude-sonnet-5@high` retains all three pins",
-        "never send them to a legacy prefix runner",
-        "resolve executor/reviewer together through fallback",
-        "Claude Opus execution/Copilot Opus review needs different routes, "
-        "distinct delivery identities and distinct known quota identities with evidence",
-        "family diversity and route labels prove neither",
-        "separate cold contexts on one permitted route are allowed by policy, "
-        "with no quota separation",
-        "Exclude only the concrete failed delivery",
+        "never silently relax pins",
         "distinguish quota exhaustion, auth, permission, unsupported selection and unknown",
-        "never log in interactively, scan provider-wide quotas, "
-        "rewrite config automatically or silently relax pins",
+        "exclude only that delivery",
+        "never log in interactively",
+        "one focused handoff",
     )
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_dispatch_rule_covers_every_harness(name: str) -> None:
+    """D5: native in Claude Code, else `plz-run` there; a `plz run` shell job on Codex/Copilot."""
+    require(
+        section(name, "Dispatch contract"),
+        "Claude Code, `<m>` is `opus`, `sonnet`, `haiku` or `fable` without `@<effort>`: "
+        "dispatch the agent natively",
+        "Claude Code, any other `<m>`",
+        "`copilot::<id>` too",
+        "dispatch `plz-run` with `Run: <role> <m> · <line>`",
+        "Codex or Copilot: run `plz run <role> <m> '<line>'` as a shell job",
+        "`plz-visual` never goes through `plz run`",
+        "`<id>: cannot dispatch <agent> <m>`",
+        "One batch may mix native, `plz-run` and shell-job dispatches in parallel",
+    )
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_copilot_is_harness_and_external_delivery_route(name: str) -> None:
+    dispatch = section(name, "Dispatch contract")
+    require(
+        dispatch,
+        "Copilot is a harness and an external delivery route",
+        "`plz run <role> copilot::<model> '<line>'`",
+        "exact Copilot model id",
+        "docs/COPILOT.md",
+    )
+    assert "remain disabled" not in dispatch
+    assert "remains disabled" not in dispatch
+
+
+def test_new_plan_names_the_copilot_auth_check() -> None:
+    require(
+        section("plz-new-plan", "1. Clarify first, before any graph (req 6)"),
+        "Copilot has no status command",
+        "docs/COPILOT.md",
+        "`error: copilot is not logged in; run copilot login`",
+    )
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_plz_dispatch_is_the_optional_advanced_path_with_the_example(name: str) -> None:
+    require(
+        section(name, "Dispatch contract"),
+        "Advanced, optional",
+        "`plz run` refuses qualified portable tokens",
+        "`plz dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>`",
+        "`.planzilla/templates/capabilities.json`",
+        '`"enabled": true` only on routes you have demonstrated',
+    )
+
+
+@pytest.mark.parametrize("name", SKILLS)
+@pytest.mark.parametrize(
+    "api", ["planzilla.commands.dispatch.dispatch", "NativeAdapter", "run_selection"]
+)
+def test_skills_never_require_the_python_dispatch_api(name: str, api: str) -> None:
+    assert api not in read(f"skills/{name}/SKILL.md")
 
 
 def test_visual_requires_operations_and_routes_unsupported_work_to_planner() -> None:
@@ -259,35 +279,6 @@ def test_d8_pins_cover_every_phase_with_fixtures_only(
         "codex",
     )
     assert selection.mismatch and selection.separate_context
-
-
-@pytest.mark.parametrize("name", SKILLS)
-def test_workflows_use_supported_policy_and_callable_dispatch(name: str) -> None:
-    require(
-        section(name, "Dispatch contract"),
-        "planzilla.commands.dispatch.dispatch",
-        "NativeAdapter",
-        "plz dispatch",
-        "run_selection",
-        "only the current phase",
-        "review=True",
-    )
-    require(section(name, "Phase policy"), "plz policy", "--harnesses", "--providers", "--models")
-
-
-@pytest.mark.parametrize("name", SKILLS)
-def test_review_and_resume_require_host_retained_successful_execution(name: str) -> None:
-    require(
-        section(name, "Dispatch contract"),
-        "completed_execution",
-        "only after executor success",
-        "prospective pair records",
-        "host-owned",
-        "resume",
-        "fixed history",
-        "missing evidence",
-    )
-    assert "resolve the pair again" not in section(name, "Dispatch contract")
 
 
 def test_planner_requires_completed_execution_history() -> None:

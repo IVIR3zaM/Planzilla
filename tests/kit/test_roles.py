@@ -85,3 +85,12 @@ def test_planner_guides_model_choice_across_providers() -> None:
         assert word in text, f"planner role lacks {word}"
     assert "gpt-6" not in text  # D3: no versioned Codex names
     assert "`plz-planner`, `plz-executor`, `plz-verifier`, `plz-visual`" in text  # L8 kept
+
+
+def test_run_adapter_admits_route_qualified_models() -> None:
+    """D5: Claude Code sends `copilot::<id>[@<e>]` to plz-run, so its model rule admits `:`."""
+    text = " ".join((KIT / "agents/claude/plz-run.md").read_text(encoding="utf-8").split())
+    assert "letters, digits and `.`, `_`, `@`, `-`, `:`" in text
+    assert "The role must be planner, executor or verifier" in text
+    assert "otherwise reply `error: bad Run input`" in text
+    assert "each `'` written `'\\''`" in text

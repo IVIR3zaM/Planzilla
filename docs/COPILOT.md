@@ -64,6 +64,29 @@ Copilot CLI as the client a person runs Planzilla inside.
   `~/.copilot/skills` or `~/.agents/skills`. Planzilla's shared `.agents/skills/` is therefore discovered.
   `documentation-only` [skills].
 
+## Dispatch from the skills
+
+The `plz-run-plan` and `plz-new-plan` skills share one `## Dispatch contract` (FORMAT §14). After the allowlist
+check (plan `harnesses`, effective `providers`), each set line's agent and model `<m>` go by the harness the
+orchestrator actually runs in (`<role>` is planner, executor or verifier):
+
+- Claude Code, `<m>` is `opus`, `sonnet`, `haiku` or `fable` without `@<effort>`: dispatch the agent natively.
+- Claude Code, any other `<m>` (`copilot::<id>` too): dispatch `plz-run` with `Run: <role> <m> · <line>`.
+- Codex or Copilot: run `plz run <role> <m> '<line>'` as a shell job. Inside Copilot CLI as the harness, every
+  role therefore runs as a shell job.
+- `plz-visual` never goes through `plz run`: native in Claude Code with a native `<m>`; anywhere else the run
+  stops with `<id>: cannot dispatch plz-visual <m>`. Copilot has no visual agent (see `## Limits`).
+
+Copilot as a delivery route, from any host: `plz run <role> copilot::<model> '<line>'` with an exact Copilot
+model id. Its auth check is that call itself (see `## Auth`): a logged-out CLI gives
+`error: copilot is not logged in; run copilot login`, and the person logs in.
+
+Advanced, optional: `plz run` exits 3 for a qualified portable token such as `copilot::opus` (see `## Effort`).
+Resolve it with `plz dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>`, run as a
+shell job, where `<file>` is a copy of `.planzilla/templates/capabilities.json` with each placeholder replaced by
+evidence you observed and `"enabled": true` only on routes you have demonstrated. The shipped copilot record
+names example model ids only; check each id against your account (see `## Models`).
+
 ## Entrypoint
 
 - Lookup for the external route: use `copilot` when it is on `PATH`; otherwise use `gh copilot --` followed by the

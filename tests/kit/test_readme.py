@@ -43,3 +43,56 @@ def test_readme_drops_stale_external_copilot_claims() -> None:
         "native Copilot delivery",
     ):
         assert stale not in text
+
+
+ROOT = Path(__file__).resolve().parents[2]
+TEMPLATE = "`.planzilla/templates/capabilities.json`"
+RULE = (
+    "Claude Code, `<m>` is `opus`, `sonnet`, `haiku` or `fable` without `@<effort>`",
+    "`plz-run`",
+    "`plz run <role> <m> '<line>'` as a shell job",
+    "`plz-visual` never goes through `plz run`",
+    "`plz dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>`",
+    TEMPLATE,
+)
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def test_readme_dispatch_leads_with_the_rule_then_plz_dispatch() -> None:
+    text = _flat(_readme().split("### Dispatch and runner boundaries", 1)[1].split("\n## ", 1)[0])
+    for phrase in RULE:
+        assert phrase in text, phrase
+    assert text.index(RULE[0]) < text.index("plz dispatch") < text.index("NativeAdapter")
+
+
+def _format_section(number: int) -> str:
+    text = (ROOT / "docs" / "FORMAT.md").read_text(encoding="utf-8")
+    return text.split(f"## §{number} ", 1)[1].split("\n## §", 1)[0]
+
+
+def test_format_14_leads_with_the_rule_then_plz_dispatch() -> None:
+    text = _flat(_format_section(14))
+    for phrase in RULE:
+        assert phrase in text, phrase
+    assert text.index(RULE[0]) < text.index("plz dispatch") < text.index("Capability resolution")
+
+
+def test_format_11_lists_the_capabilities_template() -> None:
+    assert "kit/templates/capabilities.json" in _format_section(11)
+
+
+def test_format_11_adapters_lead_with_the_rule() -> None:
+    text = _flat(_format_section(11))
+    for phrase in (*RULE[:4], "`copilot::<id>[@<effort>]`", TEMPLATE):
+        assert phrase in text, phrase
+    assert text.index(RULE[0]) < text.index("Role prompts are plain")
+
+
+def test_copilot_doc_gives_the_same_rule_and_advanced_path() -> None:
+    text = _flat((ROOT / "docs" / "COPILOT.md").read_text(encoding="utf-8"))
+    for phrase in RULE:
+        assert phrase in text, phrase
+    assert "`plz run <role> copilot::<model> '<line>'`" in text

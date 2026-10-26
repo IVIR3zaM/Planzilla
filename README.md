@@ -82,12 +82,10 @@ After vendoring, open Claude Code in the repo:
 The agents live in `.claude/agents/` and the skills in `.claude/skills/` of the repo, so no `~/.claude`
 configuration is needed.
 
-Dispatch follows effective plan policy and actual callable controls (FORMAT §9, §14). Prefer proven native
-delegation with enforceable model/effort selection and repository instruction inheritance. Otherwise use a
-demonstrated CLI route that preserves every pin, or return a focused handoff naming the failed operation,
-constraint, evidence and minimal alternatives. Model spelling alone does not choose native versus CLI delivery.
-One batch may mix proven routes. Every phase has a separate role invocation; only the planner authors DRAFT,
-Graph tokens and briefs. `[visual]` requires a proven browser surface and never goes through text-only `plz run`.
+The skills dispatch every role by one rule, keyed on the harness you actually run in (see
+[Dispatch](#dispatch-and-runner-boundaries)): native agents in Claude Code for its own model names, the
+`plz-run` adapter or a `plz run` shell job for everything else. Every phase is a separate role invocation; only
+the planner authors DRAFT, Graph tokens and briefs. `[visual]` never goes through text-only `plz run`.
 
 ## Use it in other harnesses
 
@@ -280,31 +278,46 @@ The planner chooses within effective permissions using demonstrated capabilities
 
 ### Dispatch and runner boundaries
 
-Use `planzilla.commands.dispatch.dispatch` with supplied observed capability facts and host-owned
-`NativeAdapter` schemas/callbacks for native or CLI dispatch (FORMAT §9). The host must bridge an actual
-callable tool; a Python callback or fixture does not manufacture live access. Before a plan exists, supply
-a confirmed effective `initial_policy`. For shell-only delivery:
+Both skills share one `## Dispatch contract`. It first checks the actual coordinator against the plan's
+`harnesses` and intersects delivery with effective `providers`, never probing excluded providers. Then each
+`plz set` line's agent `<agent>` and model `<m>` go by the harness you actually run in, whatever config `harness`
+says (`<role>` is planner, executor or verifier):
+
+- Claude Code, `<m>` is `opus`, `sonnet`, `haiku` or `fable` without `@<effort>`: dispatch the agent natively.
+- Claude Code, any other `<m>` (`copilot::<id>` too): dispatch the `plz-run` adapter with
+  `Run: <role> <m> · <line>`; it runs `plz run` and relays the one-line reply.
+- Codex or Copilot: run `plz run <role> <m> '<line>'` as a shell job, with an owned job handle and its own
+  `out`/`err`/`rc` files; the reply is the last non-blank line of `out` (rc 0), else of `err`.
+- `plz-visual` never goes through `plz run`: it is dispatched natively in Claude Code with a native `<m>`, and
+  anywhere else the run stops with `<id>: cannot dispatch plz-visual <m>`.
+
+One batch may mix all three. An `error: …` reply is a crash. Pins are never silently relaxed; a line no allowed
+route can dispatch stops the run with `<id>: cannot dispatch <agent> <m>` and one focused handoff.
+
+**Advanced, optional: `plz dispatch`.** `plz run` refuses qualified portable tokens such as `copilot::opus`,
+because a portable name is not a Copilot model id. To resolve them against plan policy and your own observed
+capabilities, copy the shipped example `.planzilla/templates/capabilities.json`, replace each placeholder with
+evidence you observed, set `"enabled": true` only on routes you have demonstrated, and run, as a shell job,
+`plz dispatch <plan> <role> '<line>' --actual-harness <h> --facts <file> --node <id>`:
 
 ```sh
+cp .planzilla/templates/capabilities.json ~/plz-capabilities.json   # then edit it
 .planzilla/plz dispatch <plan> executor 'Plan: <plan> · Node: N03 · Try: 1' \
-  --actual-harness codex --facts observed-capabilities.json --node N03 --record selections.json
+  --actual-harness codex --facts ~/plz-capabilities.json --node N03 --record selections.json
 ```
 
-Facts describe demonstrated model controls, delivery and evidence; they are not discovery results. The shell
-has no native callback. Dispatch uses the Graph selection and in-flight phase, records actual/configured
-harness mismatch and selections/handoffs, and preserves resolved pins through `run_selection`. The orchestrator
-must `set` the phase before dispatch; dispatch does not change plan state. For deliberate pairs, resolve both
-requests but invoke only execution. Selection records, including prospective pair records, do not attest
-completion. Only after executor dispatch succeeds (return code 0), the host retains its executor `Selection`,
-associated with that node/try, including original pins, delivery/quota identities and all evidence. After
-`set VERIFYING`, pass both requests/lines with `review=True, completed_execution=<retained Selection>`.
-Review resolves only currently supported reviewers against this fixed history; a disappeared executor
-cannot be replaced by a hypothetical executor or block a supported independent reviewer. Missing evidence
-or a contradiction with the bound executor request/Graph pins produces a focused handoff. The host owns
-capture/reload across resume; dispatch adds no persistence or discovery. Preserve the retained selection
-unchanged, including nested `Pins`, `Failure` and tuple evidence fields when reloading serialized data.
-Ordinary same-route cold review remains allowed without a quota separation claim. Check-only nodes without
-an executor phase use a standalone verifier invocation.
+The example holds one CLI-mode record each for claude, codex and copilot, all `"enabled": false`, so as shipped
+it selects nothing and `plz dispatch` exits 3 with a handoff. Facts describe demonstrated model controls,
+delivery and evidence; they are not discovery results. Dispatch uses the Graph selection and in-flight phase,
+records actual/configured harness mismatch and selections/handoffs, and preserves resolved pins. The
+orchestrator must `set` the phase before dispatch; dispatch does not change plan state.
+
+Hosts that embed Planzilla can call `planzilla.commands.dispatch.dispatch` with observed capability facts and
+host-owned `NativeAdapter` schemas/callbacks for an actual callable tool (FORMAT §9); the skills never need it.
+That API also resolves deliberate executor/reviewer pairs: only after executor dispatch succeeds does the host
+retain its `Selection`, and after `set VERIFYING` it passes `review=True, completed_execution=<retained
+Selection>`, so review resolves only supported reviewers against that fixed history. Missing evidence or a
+contradiction with the bound executor request/Graph pins produces a focused handoff.
 
 Legacy `planzilla run <role> <model> <line>` keeps direct Claude/Codex CLI behavior and the caller's working
 directory; capability-aware dispatch uses the plan repository. Direct `run` accepts supported exact
