@@ -1,5 +1,7 @@
 """Drive the callable host boundary with controlled observations, never live tools."""
 
+import json
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -841,3 +843,40 @@ def test_independent_review_does_not_need_executor_delivery(
     )
     assert len(launched) == 1
     assert launched[0][0] == "verifier"
+
+
+def test_enabled_copilot_cli_record_reaches_the_fake_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = make_l(
+        tmp_path,
+        [row("N01", "RUNNING", model="copilot::claude-opus-5@high/copilot::claude-opus-5@high")],
+        extra="harnesses: copilot\nproviders: copilot\n"
+        "models: planner=opus@high, exec=opus@high, verify=opus@high\n",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = bin_dir / "copilot.json"
+    exe = bin_dir / "copilot"
+    exe.write_text(
+        f"#!{sys.executable}\nimport json, sys\n"
+        f"open({str(log)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        "print('DONE N01 | tests: 1 passed')\n"
+    )
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.chdir(tmp_path)
+    result = host.dispatch(
+        str(plan),
+        resolver.Request("executor", "copilot::claude-opus-5@high"),
+        LINE,
+        actual_harness="copilot",
+        capabilities=(capability("copilot", "cli"),),
+    )
+    assert result == 0
+    assert capsys.readouterr().out == "DONE N01 | tests: 1 passed\n"
+    argv = json.loads(log.read_text())
+    assert argv[0] == "-p" and "Follow .planzilla/roles/executor.md" in argv[1]
+    assert argv[argv.index("--model") + 1] == "claude-opus-5"
+    assert argv[argv.index("--reasoning-effort") + 1] == "high"
+    assert "--deny-tool=shell(git push),shell(git commit)" in argv

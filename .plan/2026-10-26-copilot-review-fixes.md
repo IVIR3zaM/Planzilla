@@ -66,7 +66,7 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | N01 | preflight | check | - | -/- | 1 | 0 | DONE | |
 | N02 | honor explicit low pins and fix facts help | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
 | N03 | record Copilot CLI evidence in docs/COPILOT.md | exec | N01 | opus/sonnet | 1 | 0 | DONE | |
-| N04 | deliver roles through the Copilot CLI | exec | N02,N03 | sonnet/opus | 0 | 0 | TODO | |
+| N04 | deliver roles through the Copilot CLI | exec | N02,N03 | sonnet/opus | 1 | 1 | DONE | |
 | N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 0 | 0 | TODO | |
 | N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 0 | 0 | TODO | |
 | N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 0 | 0 | TODO | |
@@ -162,40 +162,42 @@ Done when:
 ## N04 deliver roles through the Copilot CLI
 Do: Make `plz run <role> copilot::<model> '<line>'` and `plz dispatch` (with an enabled CLI-mode copilot record)
 run the role headless through the Copilot CLI, test-first with fake executables, exactly as docs/COPILOT.md
-records: entrypoint lookup (`copilot` on PATH, else `gh copilot --`, neither exits 3), argv with `-p`, `-s`,
-`--model` (left out for bare `copilot`), `--reasoning-effort` for a pinned effort, the role's tool flags, the auth
-check with a login hint, and reply capture through the shared last-line rule. Keep pins (D4): an effort the CLI
-cannot enforce exits 3 before any subprocess; `copilot::opus|sonnet|haiku` exits 3 like `codex::opus`. Set the
-copilot effort list to none, minimal, low, medium, high, xhigh, max. Update FORMAT and docs/COPILOT.md to match.
-Context: Refusal to remove: src/planzilla/runner.py:44-50 (`require_cli`), portable exception :35; Claude/Codex
-  argv :86-123, auth :126-182; IO src/planzilla/commands/run.py:62-106 (lookup with `shutil.which` lives here,
-  the pure runner takes the entrypoint prefix); `validate_selection` runner.py:55-75 is the `plz dispatch` path.
-  Effort list src/planzilla/providers.py:10; FORMAT §4 table docs/FORMAT.md:180. Claude/Codex argv stay
-  byte-identical; argv lists only, never a shell string; never trigger an install.
-  Tests to rewrite on purpose: tests/commands/test_run.py:405-445, :515-528; tests/test_runner.py:230-263.
-  Fakes: `copilot` and `gh` scripts in `tmp_path` on a monkeypatched `PATH`, recording argv and stdin to a file
-  and printing a canned reply or logged-out output; no network, no real CLI.
-  FORMAT places: docs/FORMAT.md:180, :185 (§4), :479 (`run` row), :513 (§9 dispatch), :797, :911-916 (§14): say
-  Copilot delivery is external CLI only, with no visual agent, and cite docs/COPILOT.md. README is N05's.
-Read: `docs/COPILOT.md`, `src/planzilla/runner.py`, `src/planzilla/commands/run.py`, `src/planzilla/providers.py`,
-  `src/planzilla/commands/dispatch.py`, `tests/`, `docs/FORMAT.md`
+records: entrypoint lookup (`copilot` on PATH, else `gh copilot --` only when gh already holds its downloaded CLI,
+neither exits 3), argv with `-p`, `-s`, `--model` (left out for bare `copilot`), `--reasoning-effort` for a pinned
+effort, the role's tool flags, the auth check with a login hint, and reply capture through the shared last-line
+rule. Keep pins (D4): an effort the CLI cannot enforce exits 3 before any subprocess; `copilot::opus|sonnet|haiku`
+exits 3 like `codex::opus`. Copilot effort list: none, minimal, low, medium, high, xhigh, max. Turn the e2e
+copilot case from expecting a refusal into proving delivery through stubs. FORMAT and docs/COPILOT.md state every
+Copilot CLI failure (no entrypoint, logged out, nonzero exit, empty reply) as the code prints it: exit 3 with one
+`error: …` line on stderr, through `plz run` and `plz dispatch` alike; a §14 handoff is only a selection outcome.
+Context: IO and lookup src/planzilla/commands/run.py:63-130; pure argv, entry and auth in src/planzilla/runner.py;
+  efforts src/planzilla/providers.py:10; `plz dispatch` CLI runs go through src/planzilla/commands/dispatch.py:344
+  `run_selection`, so `_handoff` (:166) never sees a CLI failure. Claude/Codex argv stay byte-identical; argv lists
+  only; never install, update or log in to the CLI. Fakes: `copilot`/`gh` scripts in `tmp_path` on a monkeypatched
+  `PATH` with an isolated `XDG_DATA_HOME`. This host has a real `copilot` on PATH: no test may reach it or the
+  network. E2E: the tests/e2e/test_harness_compat.py copilot case runs under inner `shutil.which`/`subprocess.run`
+  stubs, as the `multiple` case does. FORMAT places: §4 docs/FORMAT.md:176-190, §9 `dispatch` :508-517 and `run`
+  :595-630, §14 :935-940 (its "exits 3 with a handoff" must name the `error: …` line instead). Copilot delivery is
+  external CLI only, with no visual agent; cite docs/COPILOT.md (Entrypoint :67-88, Auth :151-172). README is N05's.
+Read: `docs/COPILOT.md`, `docs/FORMAT.md`, `src/planzilla/`, `tests/`
 Write: `src/planzilla/runner.py`, `src/planzilla/commands/run.py`, `src/planzilla/providers.py`,
   `tests/test_runner.py`, `tests/test_providers.py`, `tests/commands/test_run.py`, `tests/commands/test_dispatch.py`,
-  `docs/FORMAT.md`, `docs/COPILOT.md`
-Test first: fake `copilot` on PATH: `plz run verifier copilot::<id> LINE` prints the fake reply (exit 0) and the
-  recorded argv holds the prompt, `--model <id>`, `-s` and the verifier tool flags; with only a fake `gh`, argv
-  starts `gh copilot --`; neither exits 3; bare `copilot` omits `--model`; `@high` adds `--reasoning-effort high`;
-  logged-out output exits 3 with the hint; a nonzero exit or empty reply exits 3; `copilot::opus` exits 3 with
-  no call; `copilot@minimal` parses; `plz dispatch` with an enabled copilot CLI record reaches the fake.
+  `tests/e2e/test_harness_compat.py`, `docs/FORMAT.md`, `docs/COPILOT.md`
+Test first: fake `copilot` on PATH: `plz run verifier copilot::<id> LINE` prints the fake reply (exit 0), argv holds
+  the prompt, `--model <id>`, `-s` and the verifier tool flags; only a fake `gh` with a downloaded CLI: argv starts
+  `gh copilot --`; neither: exit 3 and one `error:` line; bare `copilot` omits `--model`; `@high` adds
+  `--reasoning-effort high`; logged-out output exits 3 with the hint; nonzero exit or empty reply exits 3;
+  `copilot::opus` exits 3 with no call; `copilot@minimal` parses; `plz dispatch` with an enabled copilot CLI record
+  reaches the fake. E2E: `run executor copilot::claude-sonnet-5@high LINE` and `dispatch((facts("copilot", "cli"),), ())`
+  each exit 0, print REPLY, make one `copilot` call holding `--model claude-sonnet-5`, native adapter uncalled.
 Done when:
-- C1 [cmd] `uv run pytest -q tests/test_runner.py tests/test_providers.py tests/commands/test_run.py tests/commands/test_dispatch.py`
-- C2 [cmd] `! grep -rn 'external Copilot unavailable' src/planzilla && uv run planzilla run executor copilot::opus 'Plan: x · Node: N01 · Try: 1'; test $? -eq 3`
-- C3 [review] The Copilot entrypoint lookup, argv, effort flag, auth check, reply capture and per-role tool flags
-  in src/planzilla/runner.py and commands/run.py match docs/COPILOT.md: no `--allow-all-paths`, the verifier
-  cannot write files, nothing installs the CLI; qualified aliases and unenforceable efforts exit 3 before any
-  subprocess; Claude/Codex argv unchanged; tests drive fake executables through `plz run` and `plz dispatch`.
-- C4 [review] docs/FORMAT.md §4 (copilot efforts), §9 (`run` row, `dispatch`) and §14 and docs/COPILOT.md describe
-  external Copilot CLI delivery as the code does, keep no visual agent, and no longer say it is disabled.
+- C1 [cmd] `uv run pytest -q tests/test_runner.py tests/test_providers.py tests/commands/test_run.py tests/commands/test_dispatch.py tests/e2e/test_harness_compat.py`
+- C2 [cmd] `! grep -rnI --include='*.py' 'external Copilot unavailable' src/planzilla tests/e2e && uv run planzilla run executor copilot::opus 'Plan: x · Node: N01 · Try: 1'; test $? -eq 3`
+- C3 [review] Copilot lookup, argv, effort flag, auth check, reply capture and role tool flags in runner.py and
+  commands/run.py match docs/COPILOT.md: no `--allow-all-paths`, verifier cannot write, nothing installs the CLI;
+  aliases and unenforceable efforts exit 3 before any subprocess; Claude/Codex argv unchanged; tests use fakes.
+- C4 [review] docs/FORMAT.md §4, §9 (`run` row, `dispatch`), §14 and docs/COPILOT.md describe external Copilot CLI
+  delivery and each failure output as the code produces it (no handoff claimed for a CLI failure), no visual agent.
 - C5 [cmd] `uv run pytest -q`
 
 ## N05 describe Copilot support in the README
@@ -349,5 +351,62 @@ exec: DONE · 1237 passed, 1 skipped
 - Added docs/COPILOT.md: harness, entrypoint, headless flags, effort values, auth, per-role tool flags, reply capture, models, limits, 3 live calls
 - Smoke model is auto: claude-haiku-4.5 was not available on this account and auto rejects effort; copilot is on PATH here as a symlink to the gh-downloaded CLI
 - Auth check is the prompt call itself, since there is no status subcommand; role tool sets use per-tool flags (documentation-only, not run with tools)
+check: PASS 3/3
+verify: PASS
+
+### N04 try 1 · 2026-10-26
+exec: BLOCKED · tests/e2e/test_harness_compat.py:184-189 still asserts 'external Copilot unavailable' and is outside Write; C5 (full pytest) fails only there
+
+### N04 replan 1 · 2026-10-26
+plan: REPLANNED
+- cause: tests/e2e/test_harness_compat.py:183-189 still asserted the removed copilot refusal and was outside Write, so full pytest (C5) failed
+- brief adds tests/e2e/test_harness_compat.py to Write, cites the raising which/subprocess patches and the multiple-case stub pattern, and states the e2e copilot case must prove delivery through stubs
+- C1 now runs the e2e file; C2 greps tests/e2e too; tests must never reach the real copilot on PATH on this host
+
+### N04 try 1 · 2026-10-26
+exec: DONE · 1266 passed
+- Copilot CLI delivery in runner.py/run.py/providers.py with FORMAT and COPILOT docs; e2e copilot case now proves delivery through stubs
+- Bare copilot with effort and qualified aliases exit 3 before any subprocess; auth check is the prompt call
+check: FAIL C2
+- C2 exit 1: Binary file tests/e2e/__pycache__/test_harness_compat.cpython-310-pytest-9.1.1.pyc matches
+
+### N04 try 2 · 2026-10-26
+exec: DONE · 1266 passed, 1 skipped
+- Cleared stale ignored __pycache__ bytecode that still held the old refusal string; sources were already clean
+- Verify and C2 pass: grep clean, copilot::opus exits 3
+check: FAIL C2
+- C2 exit 1: Binary file tests/e2e/__pycache__/test_harness_compat.cpython-310-pytest-9.1.1.pyc matches
+
+### N04 replan 2 · 2026-10-26
+plan: REPLANNED
+- cause: C2 grep -rn also scanned ignored __pycache__ bytecode; a stale pytest-rewritten pyc dated 2026-10-22 kept the old refusal string while every .py source is clean
+- C2 now greps only Python sources (-I --include='*.py'); Do, Write paths and other criteria unchanged, so the delivered code needs only a recheck
+
+### N04 try 1 · 2026-10-26
+exec: DONE · 1266 passed, 1 skipped
+- Copilot CLI delivery in runner.py/commands/run.py (copilot-or-gh entry, -p/-s/--model/--reasoning-effort, role tool flags, auth via prompt call); efforts list extended; FORMAT/COPILOT.md and e2e updated
+- Unenforceable effort on bare copilot and copilot::opus|sonnet|haiku exit 3 before any subprocess; no visual agent
+check: PASS 3/3
+verify: FAIL C3
+- C3 src/planzilla/commands/run.py:73-79 with src/planzilla/runner.py:198-202 (copilot_entry) - when copilot is not on PATH the runner launches 'gh copilot -- ...'; gh copilot --help on this host and docs/COPILOT.md:72-75 state that gh downloads the Copilot CLI to ~/.local/share/gh/copilot when it is not installed, so plz run/dispatch installs the CLI in exactly the case the fallback is used (--no-auto-update after -- does not reach gh) - criterion requires that nothing installs the CLI; docs/COPILOT.md:8-9 only relabels this as gh behaviour
+
+### N04 try 2 · 2026-10-26
+exec: DONE · 1268 passed
+- gh copilot -- route now used only when gh is on PATH and its downloaded CLI already exists (XDG_DATA_HOME or ~/.local/share/gh/copilot/copilot), so nothing installs the CLI
+- FORMAT §9 and docs/COPILOT.md updated; tests use an isolated XDG_DATA_HOME
+check: PASS 3/3
+verify: FAIL C4
+- C4 docs/FORMAT.md:940 - §14 says a missing copilot/gh executable or login 'exits 3 with a handoff', but the code (commands/run.py _run via dispatch run_selection) exits 3 with a plain 'error: copilot not found on PATH (nor a Copilot CLI already downloaded by gh)' or 'error: copilot is not logged in; run copilot login' line, not a §14 handoff naming operation, constraint, evidence and alternatives (dispatch._handoff is never reached on that path) - expected §14 to describe the outcome the code produces
+
+### N04 replan 1 · 2026-10-26
+plan: REPLANNED
+- cause: verify FAIL C4, FORMAT §14 (docs/FORMAT.md:940) claimed a missing copilot/gh executable or login exits 3 with a handoff, while the code exits 3 with one plain error line (dispatch CLI runs go through run_selection, never _handoff)
+- brief now requires FORMAT and COPILOT.md to state every Copilot CLI failure as exit 3 with one error line via plz run and plz dispatch, a handoff being only a selection outcome; C4 checks each failure output against the code
+- Context line refs refreshed to the current tree; code, Write paths and C1-C3, C5 unchanged, so only the doc wording needs fixing
+
+### N04 try 1 · 2026-10-26
+exec: DONE · 1268 passed
+- Copilot CLI delivery in runner.py/run.py with fake-executable tests and e2e stubs; FORMAT §4/§9/§14 and COPILOT.md state each CLI failure as exit 3 with one error line
+- Bare copilot with an effort and copilot::opus|sonnet|haiku exit 3 before any subprocess
 check: PASS 3/3
 verify: PASS

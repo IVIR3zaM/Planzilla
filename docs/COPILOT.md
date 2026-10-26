@@ -1,9 +1,12 @@
 # GitHub Copilot CLI evidence
 
 This file records what Planzilla may rely on when it runs GitHub Copilot CLI, either as the harness a person
-works in or as an external delivery route that `plz run` launches. It is the source the external Copilot runner
-is built from; the Claude and Codex equivalents are `build_argv`, `login_argv`, `logged_in` and `login_hint` in
-`src/planzilla/runner.py`.
+works in or as an external delivery route that `plz run` and `plz dispatch` launch. It is the source the external
+Copilot runner is built from, and `src/planzilla/runner.py` (`build_argv`, `copilot_entry`, `copilot_logged_out`,
+`login_hint`) and `src/planzilla/commands/run.py` (the `PATH` lookup and the call) now implement it; FORMAT §9
+(`run`) states the resulting argv and exit codes. Delivery is the external CLI only, with no visual agent. The
+runner never installs, updates or logs in to the CLI: it uses the `gh copilot --` route only when `gh` already
+holds its downloaded CLI, since `gh copilot` would otherwise download one (see `## Entrypoint`).
 
 Evidence was gathered on 2026-10-26 on macOS (darwin, arm64) with GitHub Copilot CLI 1.0.103 and gh 2.103.2.
 Each fact is marked:
@@ -64,12 +67,14 @@ Copilot CLI as the client a person runs Planzilla inside.
 ## Entrypoint
 
 - Lookup for the external route: use `copilot` when it is on `PATH`; otherwise use `gh copilot --` followed by the
-  same arguments. The `--` stops `gh` from parsing Copilot flags. Help line: "To prevent `gh` from interpreting
-  flags intended for Copilot, use `--` before Copilot flags and args." `live-verified` (`gh copilot --help`).
+  same arguments, but only when `gh` is on `PATH` and its downloaded CLI already exists at
+  `$XDG_DATA_HOME/gh/copilot/copilot` (default `~/.local/share/gh/copilot/copilot`); with neither, exit 3. The
+  `--` stops `gh` from parsing Copilot flags. Help line: "To prevent `gh` from interpreting flags intended for
+  Copilot, use `--` before Copilot flags and args." `live-verified` (`gh copilot --help`).
 - `gh copilot` runs the Copilot CLI found on `PATH` when one is installed. When none is installed, it downloads
-  the CLI to `~/.local/share/gh/copilot` and runs it. So the `gh copilot --` fallback can download software on
-  first use. `gh` labels running Copilot through `gh` as preview and subject to change. `documentation-only`
-  [gh-manual]; this host was not tested without the CLI.
+  the CLI to `~/.local/share/gh/copilot` and runs it. Planzilla must never trigger that download, so it checks for
+  the downloaded copy first and treats its absence as "no Copilot CLI". `gh` labels running Copilot through `gh`
+  as preview and subject to change. `documentation-only` [gh-manual]; this host was not tested without the CLI.
 - On this host, `copilot` is on `PATH`, unlike the plan's context, which said it was not. It is a symlink
   `~/.local/bin/copilot -> ~/.local/share/gh/copilot/copilot`, so it is the copy that `gh` downloaded.
   `copilot --version` and `gh copilot -- --version` both print `GitHub Copilot CLI 1.0.103.` `live-verified`.
@@ -132,11 +137,14 @@ Smoke model: auto
 - The docs list `--effort=LEVEL` and `--reasoning-effort=LEVEL` with the values `low`, `medium`, `high`, `xhigh`,
   `max`; `max` is the highest tier for Anthropic models. `documentation-only` [cmd-ref]. `none` and `minimal`
   appear only in the 1.0.103 help.
-- Planzilla's effort levels (`low`, `medium`, `high`, `xhigh`, `max`) are all accepted by the flag parser. Whether
-  a given model accepts them is up to that model.
+- Planzilla's copilot effort list is the flag's own: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+  The flag parser accepts all of them; whether a given model accepts one is up to that model.
 - The CLI validates effort against the model before any request is sent: `Error: Model "auto" does not support
   reasoning effort configuration (requested: "low").`, exit 1, empty stdout (live call 2). `live-verified`.
   So `auto` must be called without an effort, and a pinned effort needs an exact model id that supports it.
+  Planzilla therefore exits 3 before any subprocess for an effort on a bare `copilot` (its default is `auto`), and
+  never passes `--reasoning-effort` without an exact `--model`. Qualified portable aliases (`copilot::opus`) exit
+  3 too: a Copilot model id is needed, resolved by `plz dispatch` or named by the caller.
 - A profile can set `reasoningEffort`, and settings can set `effortLevel`. `documentation-only` [cmd-ref],
   [prog-ref].
 
@@ -220,6 +228,11 @@ Least-privilege set per role (the `tools` argv part after the common flags). It 
   does not support (live calls 1 and 2). `live-verified`. The docs give exit codes only for `copilot workflow run`
   (`0`, `1`, `2`, `130` on SIGINT or SIGTERM); prompt-mode codes are not documented. `documentation-only`
   [prog-ref] "Workflow exit codes".
+- Failures as the runner prints them, through `plz run` and `plz dispatch` alike: exit 3, one `error: ...` line on
+  stderr, nothing on stdout, never a handoff (a handoff is only a selection outcome): no entrypoint
+  (`copilot not found on PATH (nor a Copilot CLI already downloaded by gh)`), logged out (`copilot is not logged in;
+  run copilot login`, or `gh copilot -- login`), nonzero exit (`copilot exited <code>[: <last stderr line>]`), empty
+  reply (`copilot gave an empty reply`).
 - `--output-format json` gives JSONL on stdout for machine parsing. `documentation-only` [prog-ref].
 
 ## Limits
@@ -238,8 +251,8 @@ Least-privilege set per role (the `tools` argv part after the common flags). It 
   limit per response. `live-verified` (help, live call 3).
 - Org or enterprise policy can block Copilot CLI or the allow-all flags
   (`permissions.disableBypassPermissionsMode`). `documentation-only` [install], [cmd-ref].
-- The `gh copilot --` route is preview and may download the CLI (see `## Entrypoint`). `documentation-only`
-  [gh-manual].
+- The `gh copilot --` route is preview and downloads the CLI when `gh` has none, so Planzilla uses it only when
+  the downloaded copy already exists (see `## Entrypoint`). `documentation-only` [gh-manual].
 - Whether per-tool flags are enough for a headless role is not proven here (see `## Tools`).
   `documentation-only`.
 

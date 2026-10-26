@@ -36,6 +36,13 @@ def test_provider_effort_levels() -> None:
     assert PROVIDERS == ("claude", "codex", "copilot")
     assert efforts_of("claude") == ("low", "medium", "high", "max")
     assert efforts_of("codex") == ("low", "medium", "high", "xhigh", "max")
+    assert efforts_of("copilot") == ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+
+
+@pytest.mark.parametrize("level", ["none", "minimal", "low", "medium", "high", "xhigh", "max"])
+def test_bare_copilot_parses_every_copilot_effort(level: str) -> None:
+    assert split_token(f"copilot@{level}") == ("copilot", level)
+    assert check_token(f"copilot::copilot@{level}") == f"copilot::copilot@{level}"
 
 
 @pytest.mark.parametrize(

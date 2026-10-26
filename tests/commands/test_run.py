@@ -3,6 +3,7 @@
 import json
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -403,27 +404,175 @@ def test_each_role_owns_a_distinct_temporary_reply_directory(
     assert len(set(directories)) == 3
 
 
-@pytest.mark.parametrize(
-    "token",
-    ["copilot", "copilot@high", "copilot::claude-sonnet-5@high", "copilot::gpt-6.1-sol@high"],
-)
-@pytest.mark.parametrize("on_path", [False, True])
-def test_external_copilot_is_disabled_before_any_io(
-    capsys: pytest.CaptureFixture[str],
-    fake: Fake,
-    monkeypatch: pytest.MonkeyPatch,
-    token: str,
-    on_path: bool,
-) -> None:
-    paths: list[str] = []
-    monkeypatch.setattr(
-        shutil, "which", lambda name: paths.append(name) or ("/bin/copilot" if on_path else None)
+def make_exe(directory: Path, name: str, stdout: str = "", stderr: str = "", code: int = 0) -> Path:
+    """A fake executable that records argv and stdin as JSON, then answers canned output."""
+    log = directory / f"{name}.json"
+    path = directory / name
+    path.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        "record = {'argv': sys.argv[1:], 'stdin': sys.stdin.read()}\n"
+        f"open({str(log)!r}, 'w').write(json.dumps(record))\n"
+        f"sys.stdout.write({stdout!r})\n"
+        f"sys.stderr.write({stderr!r})\n"
+        f"sys.exit({code})\n"
     )
+    path.chmod(0o755)
+    return log
+
+
+def recorded(log: Path) -> dict:
+    return json.loads(log.read_text())
+
+
+@pytest.fixture
+def bin_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    directory = tmp_path / "bin"
+    directory.mkdir()
+    monkeypatch.setenv("PATH", str(directory))
+    return directory
+
+
+def test_copilot_on_path_delivers_the_verifier_and_prints_the_reply(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path
+) -> None:
+    log = make_exe(bin_dir, "copilot", stdout="thinking\nPASS N01\n\n")
+    assert call(capsys, "verifier", "copilot::claude-sonnet-5.5", LINE) == (0, "PASS N01\n", "")
+    argv = recorded(log)["argv"]
+    assert argv[0] == "-p" and "Follow .planzilla/roles/verifier.md" in argv[1]
+    assert LINE in argv[1]
+    assert "-s" in argv
+    assert argv[argv.index("--model") + 1] == "claude-sonnet-5.5"
+    assert "--available-tools=bash,read_bash,write_bash,stop_bash,list_bash,view,glob,grep" in argv
+    assert "--deny-tool=write,shell(git push),shell(git commit)" in argv
+    assert not any(a.startswith("--allow-all") for a in argv)
+    assert "--allow-all-paths" not in argv and "--reasoning-effort" not in argv
+
+
+@pytest.fixture
+def gh_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An isolated gh data dir (XDG_DATA_HOME), empty: gh has downloaded no Copilot CLI."""
+    data = tmp_path / "data"
+    data.mkdir()
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    return data
+
+
+def download_copilot(data: Path) -> None:
+    (data / "gh" / "copilot").mkdir(parents=True)
+    (data / "gh" / "copilot" / "copilot").write_text("binary")
+
+
+def test_gh_fallback_runs_gh_copilot_double_dash(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, gh_data: Path
+) -> None:
+    download_copilot(gh_data)
+    log = make_exe(bin_dir, "gh", stdout="PASS N01\n")
+    assert call(capsys, "executor", "copilot::claude-sonnet-5.5", LINE) == (0, "PASS N01\n", "")
+    assert recorded(log)["argv"][:3] == ["copilot", "--", "-p"]
+
+
+def test_copilot_binary_wins_over_gh(capsys: pytest.CaptureFixture[str], bin_dir: Path) -> None:
+    copilot = make_exe(bin_dir, "copilot", stdout="PASS N01\n")
+    gh = make_exe(bin_dir, "gh", stdout="WRONG\n")
+    assert call(capsys, "executor", "copilot", LINE) == (0, "PASS N01\n", "")
+    assert copilot.exists() and not gh.exists()
+
+
+def test_neither_copilot_nor_gh_exits_3(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, gh_data: Path
+) -> None:
+    code, out, err = call(capsys, "executor", "copilot", LINE)
+    assert (code, out) == (3, "")
+    assert err == (
+        "error: copilot not found on PATH (nor a Copilot CLI already downloaded by gh)\n"
+    )
+
+
+def test_gh_without_a_downloaded_copilot_is_never_run_because_it_would_install(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, gh_data: Path
+) -> None:
+    log = make_exe(bin_dir, "gh", stdout="PASS N01\n")
+    code, out, err = call(capsys, "executor", "copilot::claude-sonnet-5.5", LINE)
+    assert (code, out) == (3, "") and "downloaded by gh" in err
+    assert not log.exists()
+
+
+def test_bare_copilot_omits_the_model_flag(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path
+) -> None:
+    log = make_exe(bin_dir, "copilot", stdout="PASS N01\n")
+    assert call(capsys, "executor", "copilot", LINE)[0] == 0
+    assert "--model" not in recorded(log)["argv"]
+
+
+def test_pinned_effort_adds_the_reasoning_effort_flag(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path
+) -> None:
+    log = make_exe(bin_dir, "copilot", stdout="PASS N01\n")
+    assert call(capsys, "executor", "copilot::claude-sonnet-5.5@high", LINE)[0] == 0
+    argv = recorded(log)["argv"]
+    assert argv[argv.index("--reasoning-effort") + 1] == "high"
+    assert argv[argv.index("--model") + 1] == "claude-sonnet-5.5"
+
+
+@pytest.mark.parametrize("token", ["copilot@high", "copilot::copilot@low", "copilot@minimal"])
+def test_unenforceable_copilot_effort_exits_3_before_any_subprocess(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, token: str
+) -> None:
+    log = make_exe(bin_dir, "copilot", stdout="PASS N01\n")
     code, out, err = call(capsys, "executor", token, LINE)
-    assert code == 3 and out == ""
-    assert err.startswith("error: external Copilot unavailable:") and err.count("\n") == 1
-    assert "entrypoint/reply evidence" in err and "handoff" in err
-    assert paths == [] and fake.calls == []
+    assert (code, out) == (3, "") and "effort" in err and err.count("\n") == 1
+    assert not log.exists()
+
+
+@pytest.mark.parametrize("token", ["copilot::opus", "copilot::sonnet@high", "copilot::haiku"])
+def test_qualified_copilot_alias_exits_3_with_no_call(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, token: str
+) -> None:
+    log = make_exe(bin_dir, "copilot", stdout="PASS N01\n")
+    code, out, err = call(capsys, "executor", token, LINE)
+    assert (code, out) == (3, "") and "portable intent" in err
+    assert "external Copilot unavailable" not in err
+    assert not log.exists()
+
+
+@pytest.mark.parametrize(
+    ("entry", "hint"), [("copilot", "copilot login"), ("gh", "gh copilot -- login")]
+)
+def test_logged_out_copilot_exits_3_with_the_login_hint(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, gh_data: Path, entry: str, hint: str
+) -> None:
+    download_copilot(gh_data)
+    make_exe(
+        bin_dir,
+        entry,
+        stderr="Error: No authentication information found\nCopilot can be authenticated\n",
+        code=1,
+    )
+    code, out, err = call(capsys, "executor", "copilot::claude-sonnet-5.5", LINE)
+    assert (code, out) == (3, "")
+    assert err == f"error: copilot is not logged in; run {hint}\n"
+
+
+def test_nonzero_copilot_exit_exits_3_with_the_last_stderr_line(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path
+) -> None:
+    make_exe(
+        bin_dir, "copilot", stderr='Error: Model "x" from --model flag is not available.\n', code=1
+    )
+    code, out, err = call(capsys, "executor", "copilot::x", LINE)
+    assert (code, out) == (3, "")
+    assert err == 'error: copilot exited 1: Error: Model "x" from --model flag is not available.\n'
+
+
+def test_empty_copilot_reply_exits_3(capsys: pytest.CaptureFixture[str], bin_dir: Path) -> None:
+    make_exe(bin_dir, "copilot", stdout=" \n\n")
+    assert call(capsys, "executor", "copilot", LINE) == (
+        3,
+        "",
+        "error: copilot gave an empty reply\n",
+    )
 
 
 @pytest.mark.parametrize(
@@ -436,7 +585,7 @@ def test_external_copilot_is_disabled_before_any_io(
         ("executor", "copilot", "a\nb"),
     ],
 )
-def test_malformed_copilot_input_precedes_disabled_capability(
+def test_malformed_copilot_input_precedes_path_lookup(
     capsys: pytest.CaptureFixture[str],
     fake: Fake,
     monkeypatch: pytest.MonkeyPatch,
@@ -513,18 +662,17 @@ def test_explicit_pins_survive_direct_and_resolved_cli_execution(
 
 
 @pytest.mark.parametrize("token", ["copilot::claude-sonnet-5@high", "copilot::gpt-6.1-sol@high"])
-def test_mock_resolver_success_cannot_enable_external_copilot(
-    capsys: pytest.CaptureFixture[str],
-    fake: Fake,
-    token: str,
+def test_resolved_copilot_cli_selection_runs_through_the_fake_cli(
+    capsys: pytest.CaptureFixture[str], bin_dir: Path, token: str
 ) -> None:
+    log = make_exe(bin_dir, "copilot", stdout="PASS N01\n")
     selection = resolved_selection(token, "copilot")
-    assert run_module.run_selection("executor", selection, LINE) == 3
+    assert run_module.run_selection("executor", selection, LINE) == 0
     captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "external Copilot unavailable" in captured.err
-    assert "entrypoint/reply evidence" in captured.err
-    assert fake.calls == []
+    assert (captured.out, captured.err) == ("PASS N01\n", "")
+    argv = recorded(log)["argv"]
+    assert argv[argv.index("--model") + 1] == selection.exact_id
+    assert argv[argv.index("--reasoning-effort") + 1] == "high"
 
 
 @pytest.mark.parametrize("route", ["codex", "copilot"])
@@ -538,7 +686,6 @@ def test_native_selection_is_handed_back_to_native_dispatch(
     assert run_module.run_selection("executor", selection, LINE) == 3
     captured = capsys.readouterr()
     assert captured.out == "" and "native dispatch/handoff" in captured.err
-    assert "external Copilot unavailable" not in captured.err
     assert fake.calls == []
 
 

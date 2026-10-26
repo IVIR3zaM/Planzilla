@@ -180,13 +180,36 @@ def _check_installed(root: Path, scenario: str) -> None:
                 if scenario == "copilot":
                     assert calls[0]["reasoningEffort"] == "high"
                     assert records[0].pins == resolver.Pins("claude-sonnet-5", "high", "copilot")
-                    code, out, err = command(
-                        "run", "executor", "copilot::claude-sonnet-5@high", LINE
-                    )
-                    assert code == 3 and out == "" and "external Copilot unavailable" in err
+                    copilot_calls: list[list[str]] = []
+
+                    def which(name: str) -> str:
+                        assert name == "copilot", "gh must not be probed when copilot is on PATH"
+                        return "/fixture/copilot"
+
+                    def process(
+                        argv: list[str], **kwargs: object
+                    ) -> subprocess.CompletedProcess[str]:
+                        copilot_calls.append(argv)
+                        assert argv[0] == "copilot" and kwargs["cwd"] == str(root)
+                        reply = "fixture thinking\n" + REPLY
+                        return subprocess.CompletedProcess(argv, 0, reply, "")
+
                     calls.clear()
-                    code, out, err = dispatch((facts("copilot", "cli"),), ())
-                    assert code == 3 and out == "" and "external Copilot unavailable" in err
+                    with patch("shutil.which", which), patch("subprocess.run", process):
+                        run = command("run", "executor", "copilot::claude-sonnet-5@high", LINE)
+                        assert run == (0, REPLY + "\n", "")
+                        assert len(copilot_calls) == 1
+                        assert LINE in copilot_calls[0][copilot_calls[0].index("-p") + 1]
+                        argv = copilot_calls[0]
+                        assert argv[argv.index("--model") + 1] == "claude-sonnet-5"
+                        assert argv[argv.index("--reasoning-effort") + 1] == "high"
+                        copilot_calls.clear()
+                        assert dispatch((facts("copilot", "cli"),), ()) == (0, REPLY + "\n", "")
+                        assert len(copilot_calls) == 1
+                        assert "--model" in copilot_calls[0]
+                        assert copilot_calls[0][copilot_calls[0].index("--model") + 1] == (
+                            "claude-sonnet-5"
+                        )
                     assert calls == []
     assert (root / ".plan/config.md").read_text() == config
     assert {p: p.read_bytes() for p in before} == before

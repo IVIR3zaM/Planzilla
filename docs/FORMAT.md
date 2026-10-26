@@ -177,12 +177,15 @@ constraints for the same exact model. Name compatibility does not demonstrate av
 | `fable`, `claude-*` | `claude`, `copilot` | `low` · `medium` · `high` · `max` |
 | `gpt-*` | `codex`, `copilot` | `low` · `medium` · `high` · `xhigh` · `max` |
 | bare `claude` | `claude` only | `low` · `medium` · `high` · `max` |
-| bare `codex` or `copilot` | that route only | `low` · `medium` · `high` · `xhigh` · `max` |
+| bare `codex` | that route only | `low` · `medium` · `high` · `xhigh` · `max` |
+| bare `copilot` | that route only | `none` · `minimal` · `low` · `medium` · `high` · `xhigh` · `max` |
 | other names (legacy syntax) | unconstrained until capability resolution | none |
 
 A bare route names that CLI's configured default, optionally with effort (`codex@high`); it does not pin an
 exact ID. A resolver must verify the selected default against any other constraints. For legacy Claude/Codex
-CLI execution (§9), the bare name omits the model flag. Copilot parsing does not authorize external execution.
+CLI execution (§9), the bare name omits the model flag. External Copilot CLI execution (§9, `docs/COPILOT.md`)
+accepts a bare `copilot` only without an effort, because its default model cannot enforce one: an effort on bare
+`copilot` parses but `plz run` exits 3 before any subprocess. An effort needs an exact model id that supports it.
 Without an effort suffix no explicit effort is pinned; portable mappings use §14. Existing valid tokens,
 including `gpt-6.1-sol@medium` and `gpt-6.1-sol@high`, keep their spelling and round-trip unchanged.
 
@@ -476,7 +479,7 @@ Files are replaced atomically (write a temp file, then `os.replace`).
 | `lint` | `<plan>` | per problem: `<file>:<line>: <rule>: <message>`; when clean: `lint ok: <n> nodes, <w> waves` | 0 clean; 1 problems; 2 unreadable plan |
 | `serve` | `<plan> [--port N]` (default 8765) | `serving <slug> on http://127.0.0.1:<port>/`, then blocks until Ctrl-C | 0; 3 port in use |
 | `dispatch` | `<plan> <role> <line> --actual-harness H --facts FILE [--node ID] [--model TOKEN] [--allow-low] [--record FILE]` | the current role's one-line reply | 0; 2 invalid input/policy/state; 3 unavailable delivery/role failure |
-| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply |
+| `run` | `<role> <model> <line>` | the agent's one-line reply | 0; 2 bad input; 3 CLI missing, not logged in, failed or empty reply, or an unsupported selection (qualified portable alias, effort the CLI cannot enforce) |
 
 Details:
 - `next`: lines in Graph row order; `<action>` is `brief`, `exec`, `check`, `verify`, `replan` or `ask` (§5
@@ -510,8 +513,9 @@ Details:
   CLI execution uses the referenced plan's repository as its working directory, including auth-status
   checks and role-file lookup; legacy direct `run` continues to use the caller's working directory.
   The shell has no native callback: absent native controls trigger pin-preserving proven CLI fallback or
-  one focused handoff naming operation, constraint, evidence and alternatives (exit 3). External Copilot
-  remains disabled. `--record FILE` writes an array of the full selection/handoff records as JSON, without
+  one focused handoff naming operation, constraint, evidence and alternatives (exit 3). Copilot delivery is the
+  external Copilot CLI only (`run` below), with no visual agent; its failures exit 3 with one `error: …` line
+  on stderr, as through `run`, never a handoff. `--record FILE` writes an array of the full selection/handoff records as JSON, without
   changing plan state. Node-bearing input binds to that Graph row even without `--node`; an explicit node
   must agree. Node phases require BRIEFING/REPLAN, RUNNING or VERIFYING for planner, executor or verifier;
   conflicting `--model` cannot override Graph pins. Executors require a node. Before dispatching the next
@@ -592,7 +596,7 @@ Details:
 - `run` runs one agent step on a model through the provider's CLI, from the current directory (the repo root); it
   reads no plan file and writes none. `<role>` is `planner`, `executor` or `verifier`; `<model>` is a model
   token (§4) whose name has a provider; `<line>` is the role's one-line input (§14), non-empty and without a
-  line break. Any other input exits 2 with the reason. The prompt, sent on stdin, is
+  line break. Any other input exits 2 with the reason. The prompt, sent on stdin (to `copilot`, in `-p`), is
   `Follow .planzilla/roles/<role>.md: read it first; it is your whole role.`, then `Input: <line>`, then
   `Reply with exactly the one line that role names, nothing else.`, each on its own line. Before the call, the
   login check (`codex login status`, exit 0; `claude auth status`, exit 0 and stdout JSON with `loggedIn`
@@ -604,6 +608,23 @@ Details:
   - claude: `claude -p [--model <name>] [--effort <effort>] --output-format text --no-session-persistence
     --tools <T> --allowedTools <T> --permission-mode dontAsk`; the reply is stdout. `<T>` per role: planner
     `Read,Grep,Glob,Write,Edit,Bash`; executor `Read,Grep,Glob,Edit,Write,Bash`; verifier `Read,Grep,Glob,Bash`.
+  - copilot (external Copilot CLI only, no visual agent; evidence and flag sources in `docs/COPILOT.md`):
+    `<entry> -p <prompt> -s --no-ask-user --no-auto-update [--model <name>] [--reasoning-effort <effort>]
+    --available-tools=<A> --allow-tool=<W> --deny-tool=<D> --disable-builtin-mcps`; the reply is stdout. The
+    entrypoint is `copilot` when it is on `PATH`, else `gh copilot --` only when `gh` is on `PATH` and already holds
+    its downloaded CLI (`$XDG_DATA_HOME` or `~/.local/share`, then `gh/copilot/copilot`), because `gh copilot` would
+    otherwise download the CLI; with neither, `error: copilot not found on PATH (nor a Copilot CLI already
+    downloaded by gh)` (exit 3). `--model` is omitted for a bare `copilot`. A bare `copilot` with an
+    effort exits 3 before any subprocess (the default model cannot enforce one), as
+    do qualified portable aliases (`copilot::opus|sonnet|haiku`, resolve them first). Tool values per role
+    (`A` available, `W` allowed, `D` denied): planner `A`=`bash,read_bash,write_bash,stop_bash,list_bash,view,glob,grep,create,edit,apply_patch`,
+    `W`=`read,write,shell`, `D`=`shell(git push)`; executor the same `A` and `W`, `D`=`shell(git push),shell(git commit)`;
+    verifier `A`=`bash,read_bash,write_bash,stop_bash,list_bash,view,glob,grep` (no file-writing tool),
+    `W`=`read,shell`, `D`=`write,shell(git push),shell(git commit)`. Never `--allow-all-paths`,
+    `--allow-all-tools`, `--allow-all`, `--yolo` or `--allow-url`. The runner never installs, updates or logs
+    in to the CLI. Copilot has no status command: the prompt call is the auth check. A nonzero exit whose stderr
+    contains `No authentication information found` reports `error: copilot is not logged in; run copilot login`
+    (`gh copilot -- login` on the `gh` route); any other nonzero exit reports `error: copilot exited <code>[: <detail>]`.
   The reply is the last non-blank line of the output, stripped, printed alone to stdout (exit 0); an empty
   output is `error: <cli> gave an empty reply`. External failures exit 3, print exactly one `error: …`
   line to stderr and no reply to stdout. Diagnostics report observations, never inferred quota exhaustion,
@@ -615,6 +636,7 @@ Details:
     `error: <cli> terminated by signal <positive signal number>[: <detail>]`. Login-check failures use
     `<cli> login check` in place of `<cli>`. Detail prefers the last non-blank stderr line, then stdout.
     A signal proves termination by that signal, not who sent it or why.
+  - For Copilot there is no login-check phase; its logout hint comes only from the prompt call above.
   - Failed status execution alone is not logout evidence. An explicit Codex `Not logged in` detail on an
     ordinary nonzero login-check exit appends `; codex is not logged in; run codex login` to its diagnostic.
     A successful Claude status operation with JSON `loggedIn: false` reports
@@ -795,8 +817,9 @@ lint. N04 implements resolution from supplied capability facts; N08 propagates i
 kit. The following is their required contract, not a claim that parsing a token enables its execution.
 Legacy `runs_natively`/visual checks remain conservative static lint checks: Claude's unqualified aliases
 without effort are native there; Codex and Copilot have no statically asserted native or visual capability.
-Legacy `plz run` supports Claude/Codex unqualified CLI tokens (§9); qualified/Copilot dispatch requires the
-later resolver/runner integration. Do not send a qualified token to a legacy prefix-based runner.
+Legacy `plz run` supports Claude/Codex unqualified CLI tokens and, for Copilot, qualified or bare `copilot`
+tokens through the external CLI (§9); other qualified dispatch requires the resolver. Do not send a qualified
+portable alias to a legacy prefix-based runner.
 
 Resolution receives data, never discovers tools or probes accounts itself. Apply optional plan `harnesses`
 to the actual coordinator first and intersect delivery permissions with providers (§3), before defaults,
@@ -910,12 +933,13 @@ one route are allowed when policy allows them; they provide separate judgement c
 If no supported tuple preserves constraints, hand off once with the unavailable operation, evidence and
 minimal alternatives (supply capability evidence, restore the route, or authorize a constraint change).
 
-Native-only Copilot can be usable inside an active Copilot harness while its external executable is absent
-or unusable from another harness. Keep external Copilot disabled without demonstrated reachability and reply
-usability; a catalog or mock is insufficient. Browser/visual dispatch needs a usable surface, never just an
-installed browser, login window or tool name. N02's evidence establishes neither external Copilot nor a
-usable browser on the researched host, so both remain disabled there. Parsing/configuration support does
-not change that evidence.
+Copilot can run natively inside an active Copilot harness and externally through the Copilot CLI that `plz run`
+and `plz dispatch` launch headless (§9, `docs/COPILOT.md`). External delivery is the CLI only and has no visual
+agent: a `cli`-mode Copilot record never carries navigation, snapshot or visual evidence, so visual work needs
+a usable host-native surface, never just an installed browser, login window or tool name. Delivery is real only
+for a supplied `cli`-mode record that names the route enabled by policy; a catalog or mock alone is not proof
+of live access. A Copilot CLI failure (no entrypoint, logged out, nonzero exit, empty reply) exits 3 with one
+`error: …` line on stderr, through `plz run` and `plz dispatch` alike; a handoff is only a selection outcome.
 
 **Exact Codex-only plan policy.** A plan may restrict providers to `codex` and override planner/verifier
 defaults to `gpt-6.1-sol@high` while repository planner remains `opus`. Its planner must author exact Graph
