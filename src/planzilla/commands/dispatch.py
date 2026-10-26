@@ -64,12 +64,20 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("role", choices=runner.ROLES)
     parser.add_argument("line")
     parser.add_argument("--actual-harness", required=True, choices=tuple(HARNESS_ROUTES))
-    parser.add_argument("--facts", required=True, help="JSON array of observed Capability records")
+    parser.add_argument(
+        "--facts",
+        required=True,
+        help="path to a UTF-8 JSON file holding an array of Capability records (FORMAT §9)",
+    )
     parser.add_argument(
         "--node", help="use the Graph phase token; requires matching in-flight status"
     )
     parser.add_argument("--model", help="explicit request token, still restricted by plan policy")
-    parser.add_argument("--allow-low", action="store_true")
+    parser.add_argument(
+        "--allow-low",
+        action="store_true",
+        help="permit low effort mapped from a portable alias or a role default",
+    )
     parser.add_argument("--record", help="write selection or handoff records as JSON")
 
 

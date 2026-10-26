@@ -502,7 +502,7 @@ Details:
   With explicit plan policy, validate Graph restrictions too, including add/edit/retry/new nodes. Omitted
   plan policy preserves legacy Graph editing behavior; every capability-aware dispatch still resolves and
   enforces its request against effective providers. Rejected operations leave plan/log bytes unchanged.
-- `dispatch`: `FILE` is a UTF-8 JSON array of §14 `Capability` records (nested `Model`/`Failure` objects;
+- `dispatch`: `--facts FILE` is a path to a UTF-8 JSON file holding an array of §14 `Capability` records (nested `Model`/`Failure` objects;
   tuples become JSON arrays). Facts are supplied observed evidence, never auto-discovered or promoted from
   fixtures to proof of live access. The actual harness is required separately from repository `harness`.
   Excluded providers have no model/auth/quota probes. The command connects policy and resolution to
@@ -515,8 +515,9 @@ Details:
   changing plan state. Node-bearing input binds to that Graph row even without `--node`; an explicit node
   must agree. Node phases require BRIEFING/REPLAN, RUNNING or VERIFYING for planner, executor or verifier;
   conflicting `--model` cannot override Graph pins. Executors require a node. Before dispatching the next
-  phase the orchestrator still performs `set`; `dispatch` never changes state. `--allow-low` is an explicit
-  task permission. Visual work requires the host-native proven surface and never a text-only CLI.
+  phase the orchestrator still performs `set`; `dispatch` never changes state. An explicit `@low` pin on the request
+  token (Graph cell or `--model`) is kept without `--allow-low`; `--allow-low` is the task permission needed
+  only when low comes from mapping a portable alias or from a role default. Visual work requires the host-native proven surface and never a text-only CLI.
 - **Callable host adapter**: `planzilla.commands.dispatch.dispatch(plan_ref, Request, line, *,
   actual_harness, capabilities, adapters=(), node_id=None, reviewer=None, review_line=None,
   independence=None, review=False, completed_execution=None, initial_policy=None, record=None) -> int`
@@ -832,7 +833,8 @@ mock or unknown availability cannot enable delivery. Model/effort controls mean 
 or flags, never prompt assertions. `default_id`, when supplied, is an evidenced exact resolution of a bare
 CLI default into that capability's model records. A proven CLI default may omit a model control; explicit
 model selection and native delivery still require it. Every selected explicit or mapped effort needs a
-supported effort and an effort control. Low effort also requires the request's task-policy permission.
+supported effort and an effort control. Low effort mapped from a portable alias or a role default also requires the request's task-policy
+permission; an explicit `@low` on the request token does not.
 Visual booleans represent demonstrated navigation and snapshot/image operations on this delivery's surface;
 both and nonempty visual evidence are required for a visual request.
 

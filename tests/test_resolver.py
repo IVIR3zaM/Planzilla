@@ -172,11 +172,47 @@ def test_pins_cannot_fall_back_to_sol(token: str) -> None:
     )
 
 
-@pytest.mark.parametrize("token", ["haiku", "gpt-6.1-sol@low"])
-def test_low_effort_requires_task_permission(token: str) -> None:
-    unavailable(
-        resolve(POLICY, Request("exec", token), context(), (capability("codex"),)), "low_effort"
+def test_explicit_low_pin_needs_no_task_permission() -> None:
+    result = selected(
+        resolve(POLICY, Request("exec", "gpt-6.1-sol@low"), context(), (capability("codex"),))
     )
+    assert result.effort == "low"
+
+
+def test_alias_mapped_low_requires_task_permission() -> None:
+    caps = (capability("codex"),)
+    unavailable(resolve(POLICY, Request("exec", "haiku"), context(), caps), "low_effort")
+    allowed = Request("exec", "haiku", allow_low=True)
+    assert selected(resolve(POLICY, allowed, context(), caps)).effort == "low"
+
+
+def test_role_default_low_requires_task_permission() -> None:
+    policy = Policy(("claude", "codex", "copilot"), {"exec": "gpt-6.1-sol@low"})
+    caps = (capability("codex"),)
+    unavailable(resolve(policy, Request("exec"), context(), caps), "low_effort")
+    assert selected(resolve(policy, Request("exec", allow_low=True), context(), caps)).effort == (
+        "low"
+    )
+
+
+def test_review_history_accepts_explicit_low_pin_without_permission() -> None:
+    from planzilla.resolver import completed_execution_problem
+
+    execution = Request("executor", "gpt-6.1-sol@low")
+    completed = selected(resolve(POLICY, execution, context(), (capability("codex"),)))
+    assert completed_execution_problem(POLICY, execution, context(), completed) is None
+
+
+def test_review_history_gates_alias_low_without_permission() -> None:
+    from planzilla.resolver import completed_execution_problem
+
+    allowed = Request("executor", "haiku", allow_low=True)
+    completed = selected(resolve(POLICY, allowed, context(), (capability("codex"),)))
+    problem = completed_execution_problem(
+        POLICY, Request("executor", "haiku"), context(), completed
+    )
+    assert problem is not None and problem.constraint == "completed_execution"
+    assert completed_execution_problem(POLICY, allowed, context(), completed) is None
 
 
 @pytest.mark.parametrize("field", ["model_control", "effort_control"])

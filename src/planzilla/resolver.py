@@ -312,7 +312,9 @@ def _select(
         return reject(
             "selection", f"{cap.route}/{cap.mode} does not support {intent} with its pins"
         )
-    if effort == "low" and not request.allow_low:
+    # D1/D2: only the request token's own @low is explicit; mapped or role-default low is gated.
+    explicit_low = request.token is not None and pins.effort == "low"
+    if effort == "low" and not request.allow_low and not explicit_low:
         return reject("low_effort", f"{intent} needs task policy permitting low effort")
     proven_cli_default = name in PROVIDERS and cap.mode == "cli" and cap.default_id is not None
     if (not cap.model_control and not proven_cli_default) or (
@@ -421,7 +423,11 @@ def completed_execution_problem(
                     or completed.route != "codex"
                     or completed.exact_id == "gpt-6.1-sol"
                 )
-                and (completed.effort != "low" or executor.allow_low)
+                and (
+                    completed.effort != "low"
+                    or executor.allow_low
+                    or (executor.token is not None and effort == "low")
+                )
                 and completed.route in allowed_routes(intent or "-")
                 and completed.route in HARNESS_ROUTES.values()
                 and completed.actual_harness in HARNESS_ROUTES

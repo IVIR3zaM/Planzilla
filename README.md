@@ -366,6 +366,8 @@ or plan error, 3 external failure (git, network, lock). Details in FORMAT §9.
 - `planzilla policy <plan> [--harnesses LIST] [--providers LIST] [--models ROLES]` persists confirmed plan policy.
 - `planzilla dispatch <plan> <role> <line> --actual-harness H --facts FILE [--node ID] [--model TOKEN] [--allow-low] [--record FILE]`
   resolves supplied capabilities under plan policy and runs the current phase through a supported CLI.
+  `FILE` is a path to a UTF-8 JSON file of Capability records. An explicit `@low` pin is kept; `--allow-low`
+  only permits mapping a portable alias or role default to low effort.
 - `planzilla next <plan>` prints one line per ready action: `<id> <action> <model>`.
 - `planzilla set <plan> <id> [STATUS] [--note TEXT] [--add] [--title T] [--type exec|check|gate] [--deps D] [--model M]`
   changes a node's status or structure.

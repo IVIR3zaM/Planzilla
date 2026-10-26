@@ -64,8 +64,8 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | id | title | type | deps | model | try | rp | status | note |
 |----|-------|------|------|-------|-----|----|--------|------|
 | N01 | preflight | check | - | -/- | 1 | 0 | DONE | |
-| N02 | honor explicit low pins and fix facts help | exec | N01 | sonnet/sonnet | 0 | 0 | TODO | |
-| N03 | record Copilot CLI evidence in docs/COPILOT.md | exec | N01 | opus/sonnet | 0 | 0 | TODO | |
+| N02 | honor explicit low pins and fix facts help | exec | N01 | sonnet/sonnet | 1 | 0 | DONE | |
+| N03 | record Copilot CLI evidence in docs/COPILOT.md | exec | N01 | opus/sonnet | 1 | 0 | RUNNING | |
 | N04 | deliver roles through the Copilot CLI | exec | N02,N03 | sonnet/opus | 0 | 0 | TODO | |
 | N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 0 | 0 | TODO | |
 | N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 0 | 0 | TODO | |
@@ -336,3 +336,10 @@ Done when:
 
 ### N01 try 1 · 2026-10-26
 check: PASS 8/8
+
+### N02 try 1 · 2026-10-26
+exec: DONE · 1237 passed
+- resolver gates low only for alias mapping or role default; explicit request-token @low kept in resolve and review-history check
+- --facts help, --allow-low help, FORMAT §9/§14 and README aligned
+check: PASS 3/3
+verify: PASS

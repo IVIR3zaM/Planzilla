@@ -497,6 +497,37 @@ def test_cli_dispatch_loads_facts_and_uses_resolved_runner(
     assert capsys.readouterr().err == ""
 
 
+def test_cli_dispatch_keeps_explicit_low_pin_without_allow_low(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    from dataclasses import asdict
+
+    from planzilla import cli
+
+    low = "gpt-6.1-sol@low"
+    plan = make_l(tmp_path, [row("N01", "RUNNING", model=f"{low}/{PIN}")], extra=POLICY)
+    facts = tmp_path / "facts.json"
+    facts.write_text(json.dumps([asdict(capability(mode="cli"))]))
+    launched: list = []
+    monkeypatch.setattr(run_cmd, "run_selection", lambda *args: launched.append(args) or 0)
+    argv = ["dispatch", str(plan), "executor", LINE, "--node", "N01"]
+    argv += ["--actual-harness", "codex", "--facts", str(facts)]
+    assert cli.main(argv) == 0
+    assert launched[0][1].effort == "low"
+
+
+def test_dispatch_help_describes_facts_as_json_file_path(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from planzilla import cli
+
+    with pytest.raises(SystemExit):
+        cli.main(["dispatch", "--help"])
+    text = " ".join(capsys.readouterr().out.split())
+    assert "path to a UTF-8 JSON file holding an array of Capability records" in text
+
+
 def test_pair_selection_does_not_launch_review_before_state_transition(tmp_path: Path) -> None:
     plan = make_l(tmp_path, [row("N01", "RUNNING", t=1, model=f"{PIN}/{PIN}")], extra=POLICY)
     calls: list[dict[str, str]] = []
