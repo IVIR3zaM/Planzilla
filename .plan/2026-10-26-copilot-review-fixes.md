@@ -69,7 +69,7 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | N04 | deliver roles through the Copilot CLI | exec | N02,N03 | sonnet/opus | 1 | 1 | DONE | |
 | N05 | describe Copilot support in the README | exec | N04 | sonnet/sonnet | 1 | 0 | DONE | |
 | N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 1 | 2 | DONE | |
-| N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 0 | 0 | TODO | |
+| N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 1 | 0 | DONE | |
 | N08 | bump to 0.3.0 and re-vendor | exec | N07 | haiku/- | 0 | 0 | TODO | |
 | N09 | whole-plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
 
@@ -450,5 +450,12 @@ exec: DONE · 1305 passed, 1 skipped
 - Both SKILL.md rewrapped to 80 lines, body lines at most 120 chars, Loop sub-cases on own 3-space lines, identical shorter Dispatch contract (D5 rule, Copilot route, plz dispatch with the example)
 - New D8 tests (120 chars, 3-space Loop sub-cases) and FORMAT 11 leads with the dispatch rule and names .planzilla/templates/capabilities.json
 - Dropped blank lines before headings and condensed prose to fit 80 lines while keeping every pinned phrase
+check: PASS 3/3
+verify: PASS
+
+### N07 try 1 · 2026-10-26
+exec: DONE · 1305 passed
+- Added CHANGELOG.md (Keep a Changelog 1.1.0) with Unreleased, 0.3.0, 0.2.0, 0.1.0 and link references
+- Added the D13 changelog rule bullet to AGENTS.md outside the managed block; 0.3.0 dated today
 check: PASS 3/3
 verify: PASS

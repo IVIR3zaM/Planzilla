@@ -13,6 +13,7 @@
 - Keep to a node's Write paths; never commit unless asked.
 - Verify before finishing: `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
 - The kit under `src/planzilla/kit/` is package data and ships with the package.
+- Every user-visible change adds a short entry under `## [Unreleased]` in `CHANGELOG.md` (Keep a Changelog 1.1.0 groups); a release moves those entries under the new version heading and date.
 
 <!-- planzilla:begin -->
 ## Planzilla
