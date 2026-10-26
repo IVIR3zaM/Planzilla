@@ -1,5 +1,5 @@
 # Copilot review fixes
-status: RUNNING
+status: DONE
 created: 2026-10-26 · updated: 2026-10-26
 goal: close the review findings of copilot-cli-support and finish its Copilot support: explicit low-effort pins honored by plz dispatch, an accurate --facts help, a recorded docs/COPILOT.md, external Copilot CLI delivery through plz run and plz dispatch, honest README and FORMAT, readable skills with a simple default dispatch rule, a CHANGELOG, and version 0.3.0 re-vendored from source
 verify: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
@@ -33,7 +33,7 @@ KISS/YAGNI, Write paths only, agents never commit. docs/FORMAT.md is the contrac
 same node. Skills stay at most 80 lines and keep the D9 harness-allowlist rules of copilot-cli-support. Live
 Copilot calls stay within the D12 budget, never print a credential, and use least-privilege tool flags. Vendored
 and managed files change only through `uv run planzilla install --target .`, in the last code-changing node.
-Decisions D1-D14.
+Decisions D1-D15.
 
 Definition of done: tests cover the explicit low pin, the `--facts` help, and Copilot delivery through fake
 executables for `plz run` and `plz dispatch`; docs/COPILOT.md holds the D14 content and matches the code; README
@@ -55,9 +55,10 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 - D9 N08 is the last code-changing node: it bumps `__version__` to 0.3.0 and runs `uv run planzilla install --target .`, the only writer of `.planzilla/`, `.claude/agents/plz-*.md`, `.claude/skills/plz-*/`, `.agents/skills/plz-*/`, `.github/agents/plz-*.agent.md` and the AGENTS.md block (this overrides the executor rule against editing them for that one command); the orchestrator's vendored CLI becomes 0.3.0 from then on; README's `v0.2.0` release examples stay | confirmed
 - D10 This plan's nodes use Claude aliases dispatched natively in Claude Code; the only external calls are git push (D11), fetching docs.github.com pages (N01, N03) and the live Copilot calls of D12; no Claude or Codex CLI login or other network call is needed | confirmed
 - D11 Each node commit is pushed to origin `feat/codex-model-routing` (config `push: per-node`): pre-authorized | confirmed
-- D12 The user installed the Copilot CLI and logged in before the run; no node installs, logs in, upgrades or configures it, and a missing entrypoint or login fails with an actionable message. Live Copilot calls (premium requests) are pre-authorized only here: one auth call per N01 check run, at most three in N03, exactly one in N09; each from a `mktemp -d` directory outside the repo; tests use fake executables only | confirmed
+- D12 The user installed the Copilot CLI and logged in before the run; no node installs, logs in, upgrades or configures it, and a missing entrypoint or login fails with an actionable message. Live Copilot calls (premium requests) are pre-authorized only here: one auth call per N01 check run, at most three in N03, at most two in N09 (D15); each from a `mktemp -d` directory outside the repo; tests use fake executables only | confirmed
 - D13 CHANGELOG.md at the repo root in Keep a Changelog 1.1.0 format with Semantic Versioning: an empty `## [Unreleased]` on top, `## [0.3.0] - <the day N07 runs>` for copilot-cli-support and this plan, `## [0.2.0]` and `## [0.1.0]` dated by their tag commits, entries grouped under Added, Changed, Deprecated, Removed, Fixed and Security, and link references to the GitHub tags and compares; AGENTS.md gets, outside the managed block, the rule that every user-visible change adds a CHANGELOG.md entry under `## [Unreleased]`, or under the new version's section when the change bumps the version | confirmed
 - D14 docs/COPILOT.md is an explicit deliverable written by N03: Copilot as a harness (`.github/agents` profiles, skills, AGENTS.md); Copilot as an external delivery route (entrypoint lookup: `copilot` on PATH, else `gh copilot --`); headless flags (`-p`, `-s`, `--model`, `--reasoning-effort` and its values, `--allow-all-tools`/`--allow-all-paths` and the per-role tool permissions); the auth check; reply capture; the model ids observed; known limits (no visual agent); and which facts are live-verified and which documentation-only. N04-N06 keep it in sync with the code, README links to it, and N09 checks it | confirmed
+- D15 N09 needs a new brief (its C7 must spell out the D14 items), and a new brief reruns every criterion, so its C6 live smoke would spend a second premium request in N09 while D12 pre-authorizes exactly one | confirmed · raise D12's N09 budget to at most two live Copilot calls, so the new brief keeps C6 as the one live `plz run verifier copilot::<model>` smoke
 
 ## Graph
 
@@ -71,7 +72,7 @@ matches the installer's output at 0.3.0; one live `plz run verifier copilot::<mo
 | N06 | readable skills with a simple dispatch rule | exec | N05 | opus/opus | 1 | 2 | DONE | |
 | N07 | add the changelog and its rule | exec | N06 | sonnet/sonnet | 1 | 0 | DONE | |
 | N08 | bump to 0.3.0 and re-vendor | exec | N07 | haiku/- | 1 | 0 | DONE | |
-| N09 | whole-plan acceptance | check | N08 | -/opus | 0 | 0 | TODO | |
+| N09 | whole-plan acceptance | check | N08 | -/opus | 1 | 1 | DONE | |
 
 ## N01 preflight
 Do: Confirm the starting point before any work: the full verify passes on the untouched tree; uv runs the
@@ -320,19 +321,25 @@ Done when:
 - C3 [cmd] `uv run planzilla run executor copilot::opus 'Plan: x · Node: N01 · Try: 1'; test $? -eq 3`
 - C4 [cmd] `! grep -rnE 'planzilla\.commands\.dispatch\.dispatch|NativeAdapter|Copilot (and browser )?remains? disabled' .claude/skills .agents/skills && ! grep -niE 'external copilot (remains|execution is) disabled' README.md docs/FORMAT.md`
 - C5 [cmd] `grep -qE '^## \[0\.3\.0\] - ' CHANGELOG.md && sed '/planzilla:begin/,/planzilla:end/d' AGENTS.md | grep -q 'CHANGELOG.md' && grep -qE '^Smoke model: [a-z0-9.-]+$' docs/COPILOT.md && grep -q 'docs/COPILOT.md' README.md`
-- C6 [smoke] Exactly once (one premium request, D12), from the repo root, Bash timeout 600000 ms:
+- C6 [smoke] Exactly once (one premium request; D12/D15 cap N09 at two), from the repo root, Bash timeout 600000 ms:
   `r=$PWD; m=$(sed -n 's/^Smoke model: //p' docs/COPILOT.md); d=$(mktemp -d) && cp -R tests/fixtures/run-smoke/. "$d" && cd "$d" && git init -q && git add -A && git -c user.name=smoke -c user.email=smoke@example.invalid commit -qm smoke && "$r/.planzilla/plz" install --target . >/dev/null && "$r/.planzilla/plz" run verifier "copilot::$m" 'Plan: smoke · Node: N01 · Try: 1'`
   exits 0 and prints one role line (`PASS N01` expected); report the line and the entrypoint used.
 - C7 [review] README.md, docs/FORMAT.md, docs/COPILOT.md and the installed skills describe Copilot as a harness
   and an external delivery route (`plz run`, `plz dispatch`, entrypoint lookup, effort flag, auth check) with no
-  visual agent, matching src/planzilla/runner.py, commands/run.py and providers.py; docs/COPILOT.md covers D14.
-- C8 [review] The installed plz-run-plan and plz-new-plan skills are readable step lists of at most 80 lines with a
+  visual agent, matching src/planzilla/runner.py, commands/run.py and providers.py.
+- C8 [review] docs/COPILOT.md covers each D14 item and matches the code: Copilot as a harness (`.github/agents`
+  profiles, skills, AGENTS.md); the external route's entrypoint lookup (`copilot` on PATH, else `gh copilot --`);
+  the headless flags `-p`, `-s`, `--model`, `--reasoning-effort` with its values (none, minimal, low, medium, high,
+  xhigh, max), `--allow-all-tools`/`--allow-all-paths` and the per-role tool permissions; the auth check; reply
+  capture; the model ids observed; known limits (no visual agent); and which facts are live-verified and which
+  documentation-only. README links to it.
+- C9 [review] The installed plz-run-plan and plz-new-plan skills are readable step lists of at most 80 lines with a
   dispatch path an agent can follow on Claude Code, Codex and Copilot, `plz dispatch` with
   `.planzilla/templates/capabilities.json` as the optional advanced path, and the D9 harness-allowlist rules.
-- C9 [review] `plz dispatch` resolves an explicit `@low` Graph or `--model` pin without `--allow-low` while alias
+- C10 [review] `plz dispatch` resolves an explicit `@low` Graph or `--model` pin without `--allow-low` while alias
   and role-default low stay gated, `--facts` help calls it a path to a JSON file of Capability records, tests
   cover both, and docs/FORMAT.md §9/§14 match the code.
-- C10 [review] CHANGELOG.md follows Keep a Changelog with Unreleased, 0.3.0, 0.2.0 and 0.1.0 matching git history,
+- C11 [review] CHANGELOG.md follows Keep a Changelog with Unreleased, 0.3.0, 0.2.0 and 0.1.0 matching git history,
   and AGENTS.md's changelog rule sits outside the managed block.
 
 ## Log
@@ -465,3 +472,23 @@ exec: DONE · tests: 1305 passed, 1 skipped
 - Bumped __version__ to 0.3.0 and expected version test first; re-vendored with planzilla install (second run 0 added, 0 changed)
 - Kept README v0.2.0 tag references per brief; no tracked files deleted, AGENTS.md unchanged
 check: PASS 4/4
+
+### N09 try 1 · 2026-10-26
+check: PASS 5/5
+verify: FAIL C7
+- C7 docs/COPILOT.md - 'covers D14' not evidenced: the verify brief gives no text for D14, docs/COPILOT.md never names D14, and no repo file outside .plan/ states this plan's D14, so coverage cannot be judged cold - expected the criterion to name what D14 requires. Rest of C7 (harness + external route, plz run, plz dispatch, entrypoint lookup, effort flag, auth check, no visual agent, matching runner.py/run.py/providers.py) holds.
+- note (not a finding) C6 smoke: exit 0, line 'PASS N01', entrypoint copilot on PATH (~/.local/bin/copilot), model auto
+
+### N09 replan 1 · 2026-10-26
+plan: ASK D15
+- cause: verify FAIL C7, the criterion says covers D14 without naming the D14 items, so a cold verifier cannot judge it
+- a new brief reruns every criterion, so C6 would make a second live Copilot call in N09, past the one D12 pre-authorizes; D15 asks whether to allow it or turn C6 into a human check
+- after D15 is answered the new brief restates the D14 items in C7
+plan: REPLANNED
+- cause: D15 confirmed, N09 may spend up to two live Copilot calls, so C6 stays the one live plz run verifier smoke of the new brief
+- C7 no longer says covers D14; new C8 spells out every D14 item for docs/COPILOT.md, later criteria renumbered C9-C11
+
+### N09 try 1 · 2026-10-26
+check: PASS 5/5
+verify: PASS
+- C6 smoke: plz run verifier copilot::auto in a fresh fixture repo exited 0 and printed PASS N01; entrypoint copilot on PATH (~/.local/bin/copilot)
