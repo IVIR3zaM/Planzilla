@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-10-26
+## [0.3.0] - 2026-10-27
 
 ### Added
 
@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The `plz-new-plan` and `plz-run-plan` skills are rewritten to be shorter and easier to read, with one simple
   rule for dispatching each role.
 - The README describes Copilot CLI support both as a harness and as a delivery route.
+- `docs/FORMAT.md` §11 lists the Copilot profiles that `plz install` writes, and the README release steps
+  include the changelog.
 - Review independence is anchored to a completed execution, and the first dispatch of a plan is limited to the
   planner.
 

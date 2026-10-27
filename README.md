@@ -44,7 +44,7 @@ and no home-directory configuration. From the root of your repo:
 
 ```sh
 planzilla install                  # install the version you are running
-planzilla install --version v0.2.0 # or install a released tag from GitHub
+planzilla install --version v0.3.0 # or install a released tag from GitHub
 planzilla install --target ../other-repo
 ```
 
@@ -427,7 +427,7 @@ or plan error, 3 external failure (git, network, lock). Details in FORMAT §9.
 To move a vendored repo to a newer Planzilla (FORMAT §11):
 
 1. Run `planzilla install` from the repo root (the version you are running), or
-   `planzilla install --version v0.2.0` for a released tag.
+   `planzilla install --version v0.3.0` for a released tag.
 2. Check `.planzilla/VERSION` shows the version you expect.
 3. Commit the result.
 4. Start a fresh agent session: skills and agents load at session start, so a running session keeps the old ones.
@@ -447,13 +447,15 @@ rerun the `uvx` or `pipx` install.
 `__version__` in `src/planzilla/__init__.py` is the one version (FORMAT §11). To release:
 
 1. Bump `__version__`.
-2. Re-vendor this repo with `planzilla install` so its own `.planzilla/` matches, and commit.
-3. Merge to `main`.
-4. Push the tag `v<version>`, for example `v0.2.0`. The tag must equal `v` plus `__version__`, or the build fails.
-5. The Release workflow (`.github/workflows/release.yml`) builds the sdist and wheel, runs the Homebrew tests
+2. In `CHANGELOG.md`, move the `## [Unreleased]` entries under a `## [<version>] - <date>` heading and update
+   the compare links at the bottom.
+3. Re-vendor this repo with `planzilla install` so its own `.planzilla/` matches, and commit.
+4. Merge to `main`.
+5. Push the tag `v<version>`, for example `v0.3.0`. The tag must equal `v` plus `__version__`, or the build fails.
+6. The Release workflow (`.github/workflows/release.yml`) builds the sdist and wheel, runs the Homebrew tests
    (`brew test` and `brew audit`) against the built formula, then publishes the GitHub release and pushes the
    formula to the `IVIR3zaM/homebrew-tap` tap. It needs the `HOMEBREW_TAP_TOKEN` secret.
-6. Users then run `brew upgrade planzilla`.
+7. Users then run `brew upgrade planzilla`.
 
 ## Contributing
 

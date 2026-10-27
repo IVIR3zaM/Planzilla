@@ -694,10 +694,13 @@ kit/templates/plan-single.md   S/M plan file (header, Intent, Decisions, Graph, 
 kit/templates/plan.md          L plan.md
 kit/templates/intent.md        L intent.md
 kit/templates/node.md          L brief
+kit/templates/log.md           L node log (`log/<id>.md`)
 kit/templates/config.md        .plan/config.md with every §8 key and its default
 kit/templates/capabilities.json  example `dispatch --facts` file: CLI-mode claude, codex, copilot records, all disabled
 kit/agents/claude/plz-planner.md  kit/agents/claude/plz-executor.md
 kit/agents/claude/plz-verifier.md  kit/agents/claude/plz-visual.md  kit/agents/claude/plz-run.md
+kit/agents/copilot/plz-planner.agent.md  kit/agents/copilot/plz-executor.agent.md
+kit/agents/copilot/plz-verifier.agent.md
 kit/skills/plz-new-plan/SKILL.md  kit/skills/plz-run-plan/SKILL.md
 kit/AGENTS-block.md            text placed between the AGENTS.md markers
 ```
@@ -725,6 +728,7 @@ runs `.planzilla/plz run <role> <model> <line>` (§9) in the background, waits f
 | `.planzilla/roles/*.md` | `kit/roles/` |
 | `.planzilla/templates/*` | `kit/templates/` |
 | `.claude/agents/plz-*.md` | `kit/agents/claude/` |
+| `.github/agents/plz-*.agent.md` | `kit/agents/copilot/` |
 | `.claude/skills/plz-*/**` | `kit/skills/` |
 | `.agents/skills/plz-*/**` | `kit/skills/` (same bytes) |
 | `AGENTS.md` | `kit/AGENTS-block.md` between the lines `<!-- planzilla:begin -->` and `<!-- planzilla:end -->` |
@@ -732,11 +736,12 @@ runs `.planzilla/plz run <role> <model> <line>` (§9) in the background, waits f
 Rules: AGENTS.md missing → created holding only the marked block; present without markers → a blank line and
 the block are appended; with markers → only the lines between them are replaced. Files are written only when
 their bytes differ (a second install changes no byte). Files under `.planzilla/`, `.claude/agents/plz-*.md`,
-`.claude/skills/plz-*/` and `.agents/skills/plz-*/` that the new kit does not ship are removed, then empty
-directories. Install never writes `.plan/` and never edits or deletes any other path under `.claude/` or
-`.agents/` (D25).
+flat `.github/agents/plz-*.agent.md`, `.claude/skills/plz-*/` and `.agents/skills/plz-*/` that the new kit does
+not ship are removed, then empty directories. Install never writes `.plan/` and never edits or deletes any other
+path under `.claude/`, `.agents/` or `.github/` (D25).
 
-**Versions and upgrades.** `__version__` in `src/planzilla/__init__.py` is the one version. A release is the tag
+**Versions and upgrades.** `__version__` in `src/planzilla/__init__.py` is the one version. A release moves the
+`## [Unreleased]` entries of `CHANGELOG.md` under the new version heading and date, then is the tag
 `v<version>` on main, whose Release workflow publishes the GitHub release and the tap formula. Upgrading reruns
 `planzilla install` (or `install --version vX`), which rewrites only changed files, removes files the kit dropped
 and never writes `.plan/`; then commit and start a fresh agent session (skills and agents load at session start).

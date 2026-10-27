@@ -96,3 +96,17 @@ def test_copilot_doc_gives_the_same_rule_and_advanced_path() -> None:
     for phrase in RULE:
         assert phrase in text, phrase
     assert "`plz run <role> copilot::<model> '<line>'`" in text
+
+
+def test_format_11_lists_the_copilot_profiles_install_writes() -> None:
+    text = _format_section(11)
+    assert "kit/agents/copilot/plz-planner.agent.md" in text
+    assert "kit/templates/log.md" in text
+    assert "| `.github/agents/plz-*.agent.md` | `kit/agents/copilot/` |" in text
+    assert "`.github/agents/plz-*.agent.md`" in text.split("Rules:", 1)[1]
+
+
+def test_release_steps_move_the_changelog_entries() -> None:
+    release = _readme().split("## Releasing", 1)[1].split("\n## ", 1)[0]
+    assert "CHANGELOG.md" in release
+    assert "CHANGELOG.md" in _format_section(11)
