@@ -14,13 +14,13 @@ from planzilla.commands._common import (
     ResolveError,
     append_log,
     fail,
+    load_plan,
     plan_lock,
     resolve_plan,
     uncommitted,
     write_atomic,
     write_plan,
 )
-from planzilla.plan import load_plan
 
 FIXTURE_REPO = Path(__file__).parent.parent / "fixtures" / "plans" / "repo"
 S_NAME = "2026-01-02-demo-s.md"

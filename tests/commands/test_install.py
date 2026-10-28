@@ -28,6 +28,9 @@ FAKE_KIT = {
     "kit/templates/node.md": "node template\n",
     "kit/agents/claude/plz-planner.md": "planner agent\n",
     "kit/agents/claude/plz-executor.md": "executor agent\n",
+    "kit/agents/copilot/plz-planner.agent.md": "copilot planner agent\n",
+    "kit/agents/copilot/plz-executor.agent.md": "copilot executor agent\n",
+    "kit/agents/copilot/plz-verifier.agent.md": "copilot verifier agent\n",
     "kit/skills/plz-new-plan/SKILL.md": "new plan skill\n",
     "kit/skills/plz-run-plan/SKILL.md": "run plan skill\n",
     "kit/AGENTS-block.md": "Use .planzilla/plz.\n",
@@ -46,6 +49,9 @@ FAKE_KIT_PATHS = {
     ".planzilla/lib/planzilla/kit/templates/node.md",
     ".planzilla/lib/planzilla/kit/agents/claude/plz-planner.md",
     ".planzilla/lib/planzilla/kit/agents/claude/plz-executor.md",
+    ".planzilla/lib/planzilla/kit/agents/copilot/plz-planner.agent.md",
+    ".planzilla/lib/planzilla/kit/agents/copilot/plz-executor.agent.md",
+    ".planzilla/lib/planzilla/kit/agents/copilot/plz-verifier.agent.md",
     ".planzilla/lib/planzilla/kit/skills/plz-new-plan/SKILL.md",
     ".planzilla/lib/planzilla/kit/skills/plz-run-plan/SKILL.md",
     ".planzilla/lib/planzilla/kit/AGENTS-block.md",
@@ -57,6 +63,9 @@ FAKE_KIT_PATHS = {
     ".planzilla/templates/node.md",
     ".claude/agents/plz-planner.md",
     ".claude/agents/plz-executor.md",
+    ".github/agents/plz-planner.agent.md",
+    ".github/agents/plz-executor.agent.md",
+    ".github/agents/plz-verifier.agent.md",
     ".claude/skills/plz-new-plan/SKILL.md",
     ".claude/skills/plz-run-plan/SKILL.md",
     ".agents/skills/plz-new-plan/SKILL.md",
@@ -171,6 +180,8 @@ def test_missing_target_exits_2(tmp_path, capsys):
 
 def test_every_real_kit_file_lands_at_a_section_11_target(target):
     assert run_cli("--target", str(target)) == 0
+    assert not (target / ".github/skills").exists()
+    assert not (target / ".github/copilot-instructions.md").exists()
     kit = Path(str(resources.files("planzilla"))) / "kit"
     seen = 0
     for src in sorted(p for p in kit.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
@@ -186,6 +197,8 @@ def test_every_real_kit_file_lands_at_a_section_11_target(target):
             expected = [target / ".planzilla" / rel]
         elif rel.startswith("agents/claude/"):
             expected = [target / ".claude/agents" / rel.removeprefix("agents/claude/")]
+        elif rel.startswith("agents/copilot/"):
+            expected = [target / ".github/agents" / rel.removeprefix("agents/copilot/")]
         elif head == "skills":
             expected = [target / ".claude" / rel, target / ".agents" / rel]
         else:
@@ -259,8 +272,12 @@ def test_second_install_changes_no_byte(pkg, target, capsys):
 def test_second_cli_install_reports_zero_changes(target, capsys):
     assert run_cli("--target", str(target)) == 0
     capsys.readouterr()
+    before = files_only(snapshot(target))
+    mtimes = {rel: (target / rel).stat().st_mtime_ns for rel in before}
     assert run_cli("--target", str(target)) == 0
     assert capsys.readouterr().out.endswith(": 0 added, 0 changed, 0 removed\n")
+    assert files_only(snapshot(target)) == before
+    assert {rel: (target / rel).stat().st_mtime_ns for rel in before} == mtimes
 
 
 def test_upgrade_removes_dropped_files_and_keeps_every_other_file(tmp_path, target):
@@ -467,6 +484,7 @@ def test_archive_with_path_traversal_is_rejected(tmp_path, target, capsys):
 ALLOWED_PREFIXES = (
     ".planzilla/",
     ".claude/agents/plz-",
+    ".github/agents/plz-",
     ".claude/skills/plz-",
     ".agents/skills/plz-",
 )
@@ -495,6 +513,8 @@ def test_install_writes_only_section_11_paths_and_never_plan(tmp_path, target):
             ".planzilla",
             ".claude",
             ".agents",
+            ".github",
+            ".github/agents",
             ".claude/skills",
             ".claude/agents",
             ".agents/skills",
@@ -530,3 +550,93 @@ def test_kit_entries_without_plz_prefix_are_never_written_under_claude_or_agents
     assert not (target / ".claude/skills/new-plan").exists()
     assert not (target / ".agents/skills/new-plan").exists()
     assert not (target / ".claude/agents/planner.md").exists()
+
+
+@pytest.mark.parametrize("archive", [False, True], ids=["package", "archive"])
+def test_copilot_upgrade_counts_and_preservation(
+    tmp_path: Path, target: Path, capsys: pytest.CaptureFixture[str], archive: bool
+) -> None:
+    old = make_pkg(tmp_path / "old", {"kit/agents/copilot/plz-retired.agent.md": "retired\n"})
+    (old / "kit/agents/copilot/plz-verifier.agent.md").unlink()
+    new = make_pkg(
+        tmp_path / "new", {"kit/agents/copilot/plz-planner.agent.md": "changed planner\n"}
+    )
+    user = {
+        ".github/agents/mine.agent.md": b"user agent\n",
+        ".github/agents/plz-not-owned.md": b"different extension\n",
+        ".github/agents/plz-not-owned.agent.txt": b"different extension\n",
+        ".github/agents/plz-not-owned.agent.md.bak": b"backup\n",
+        ".github/agents/nested/plz-user.agent.md": b"nested user agent\n",
+        ".github/agents/plz-folder.agent.md/keep.txt": b"user directory\n",
+        ".github/copilot-instructions.md": b"repo instructions\n",
+        ".github/workflows/check.yml": b"user workflow\n",
+        ".claude/agents/custom.md": b"custom Claude agent\n",
+        ".claude/skills/custom/SKILL.md": b"custom Claude skill\n",
+        ".agents/skills/custom/SKILL.md": b"custom Agent Skill\n",
+        ".plan/config.md": b"config\n",
+        ".plan/runs/evidence.bin": b"\x00\xffplan bytes\n",
+    }
+    for rel, data in user.items():
+        path = target / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    seed_bootstrap(target)
+    (target / "AGENTS.md").write_text(f"# Head\n{BEGIN}\nold\n{END}\ntail\n")
+    install.install_tree(old, "9.9.9", target)
+    (target / ".github/agents/plz-stale.agent.md").write_text("stale owned profile\n")
+
+    if archive:
+        tarball = tmp_path / "new.tar.gz"
+        with tarfile.open(tarball, "w:gz") as tar:
+            tar.add(new, arcname="Planzilla-9.9.9/src/planzilla")
+        assert run_cli("--target", str(target), "--archive-url", tarball.as_uri()) == 0
+        assert capsys.readouterr().out == (
+            f"installed planzilla 9.9.9 into {target}: 2 added, 2 changed, 3 removed\n"
+        )
+    else:
+        assert install.install_tree(new, "9.9.9", target) == install.Counts(2, 2, 3)
+
+    for role in ("planner", "executor", "verifier"):
+        rel = f"agents/copilot/plz-{role}.agent.md"
+        data = (new / "kit" / rel).read_bytes()
+        assert (target / ".github/agents" / f"plz-{role}.agent.md").read_bytes() == data
+        assert (target / ".planzilla/lib/planzilla/kit" / rel).read_bytes() == data
+    assert not (target / ".github/agents/plz-retired.agent.md").exists()
+    assert not (target / ".github/agents/plz-stale.agent.md").exists()
+    assert not (
+        target / ".planzilla/lib/planzilla/kit/agents/copilot/plz-retired.agent.md"
+    ).exists()
+    for rel, data in {**user, **BOOTSTRAP}.items():
+        assert (target / rel).read_bytes() == data, rel
+    assert (target / "AGENTS.md").read_text() == (
+        f"# Head\n{BEGIN}\nUse .planzilla/plz.\n{END}\ntail\n"
+    )
+
+
+def test_only_flat_plz_copilot_agent_sources_are_deployed(tmp_path: Path, target: Path) -> None:
+    rejected = (
+        "mine.agent.md",
+        "plz-other.md",
+        "plz-other.agent.txt",
+        "plz-other.agent.md.bak",
+        "nested/plz-other.agent.md",
+        "plz-nested/plz-other.agent.md",
+    )
+    pkg = make_pkg(
+        tmp_path / "pkg", {f"kit/agents/copilot/{rel}": "not deployed\n" for rel in rejected}
+    )
+    install.install_tree(pkg, "9.9.9", target)
+    assert {p.name for p in (target / ".github/agents").iterdir()} == {
+        f"plz-{role}.agent.md" for role in ("planner", "executor", "verifier")
+    }
+    for rel in rejected:
+        assert (target / ".planzilla/lib/planzilla/kit/agents/copilot" / rel).is_file()
+
+
+def test_older_kit_without_copilot_profiles_remains_installable(pkg: Path, target: Path) -> None:
+    shutil.rmtree(pkg / "kit/agents/copilot")
+    counts = install.install_tree(pkg, "9.9.9", target)
+    expected = {rel for rel in FAKE_KIT_PATHS if "copilot/" not in rel and ".github/" not in rel}
+    assert set(files_only(snapshot(target))) == expected
+    assert counts == install.Counts(added=len(expected))
+    assert not (target / ".github").exists()

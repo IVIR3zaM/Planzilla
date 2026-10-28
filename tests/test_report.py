@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from planzilla import report
-from planzilla.plan import load_plan
+from planzilla.commands._common import load_plan
 
 HEADER = (
     "# Demo plan\n"

@@ -169,10 +169,9 @@ def _line(node: str, token: str, provider: str, row: int) -> str:
     )
 
 
-CODEX_LINES = _line("N01", "gpt-6.1-sol@high", "codex", 16) + _line(
-    "N02", "gpt-6-astra", "codex", 17
+CODEX_LINES = _line("N01", "gpt-6.1-sol@high", "one of codex, copilot", 16) + _line(
+    "N02", "gpt-6-astra", "one of codex, copilot", 17
 )
-CLAUDE_LINES = _line("N01", "opus", "claude", 16) + _line("N02", "sonnet", "claude", 17)
 
 
 def _providers_repo(tmp_path: Path, monkeypatch, config: str | None) -> Path:
@@ -197,11 +196,11 @@ def test_providers_without_codex_flags_the_codex_tokens(tmp_path, monkeypatch, c
     assert capsys.readouterr().out == CODEX_LINES
 
 
-def test_providers_without_claude_flags_the_claude_tokens(tmp_path, monkeypatch, capsys):
+def test_portable_aliases_lint_with_codex_only_policy(tmp_path, monkeypatch, capsys):
     _providers_repo(tmp_path, monkeypatch, "providers: codex\n")
-    assert cli.main(["lint", SM]) == 1
+    assert cli.main(["lint", SM]) == 0
     out = capsys.readouterr().out
-    assert out == CLAUDE_LINES
+    assert out == "lint ok: 3 nodes, 1 waves\n"
     assert "gemini-3" not in out
 
 
@@ -284,3 +283,36 @@ def test_visual_never_fires_without_a_visual_criterion(tmp_path, monkeypatch, ca
     _visual_repo(tmp_path, monkeypatch, "providers", BOTH + "harness: codex\n")
     assert cli.main(["lint", SM]) == 0
     assert capsys.readouterr().out == "lint ok: 3 nodes, 1 waves\n"
+
+
+def test_lint_uses_plan_restriction_and_partial_role_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _providers_repo(tmp_path, monkeypatch, "providers: claude, copilot\n")
+    path = root / SM
+    text = path.read_text()
+    header, body = text.split("\n\n", 1)
+    path.write_text(
+        header + "\nproviders: codex\nmodels: planner=gpt-6.1-sol@high, "
+        "verify=gpt-6.1-sol@high\n\n" + body
+    )
+    assert cli.main(["lint", SM]) == 0
+    assert capsys.readouterr().out == "lint ok: 3 nodes, 1 waves\n"
+    path.write_text(
+        path.read_text().replace("gpt-6.1-sol@high/opus", "gpt-6.1-sol@high/copilot::opus")
+    )
+    assert cli.main(["lint", SM]) == 1
+    output = capsys.readouterr().out
+    assert "copilot::opus" in output
+    assert "copilot" in output and "providers" in output
+
+
+def test_lint_uses_plan_verify_default_for_visuals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _visual_repo(tmp_path, monkeypatch, "visual", BOTH)
+    path = Path(SM)
+    header, body = path.read_text().split("\n\n", 1)
+    path.write_text(header + "\nmodels: verify=gpt-6.1-sol@high\n\n" + body)
+    assert cli.main(["lint", SM]) == 1
+    assert "N04 verify gpt-6.1-sol@high" in capsys.readouterr().out

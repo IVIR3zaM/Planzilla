@@ -1,0 +1,25 @@
+Observed: 2026-10-22
+
+Command: uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+Exit: 0
+All checks passed!
+210 files already formatted
+785 passed, 1 skipped in 52.45s
+
+Command: test -s .plan/2026-10-22-copilot-cli-support/runs/N02/capabilities.md
+Exit: 0
+
+Command: uv run pytest -q tests/test_runner.py tests/commands/test_run.py tests/commands/test_install.py
+Exit: 0
+108 passed in 2.60s
+Provider and auth subprocesses in these runner tests are mocked.
+
+Command: uv run python .plan/2026-10-22-copilot-cli-support/runs/N02/probe.py > .plan/2026-10-22-copilot-cli-support/runs/N02/probe-results.json
+Exit: 0
+Six mocked exact model/effort role dispatches returned 0.
+Five mocked error cases returned 3; no provider/auth/quota process was called.
+Benign local child was observed pending and explicitly terminated; returncode -15.
+
+Initial format check found an extra final blank line in probe.py. Corrected using:
+uv run ruff format .plan/2026-10-22-copilot-cli-support/runs/N02/probe.py
+Final checks above were run after that correction. The final subsequent edit was report prose only.

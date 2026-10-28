@@ -2,10 +2,63 @@ from pathlib import Path
 
 import pytest
 
-from planzilla.config import Config, load_config, parse_config
+from planzilla.commands._common import load_config
+from planzilla.config import Config, parse_config
 from planzilla.plan import PlanError
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "plans" / "repo"
+
+
+@pytest.mark.parametrize(
+    ("harnesses", "providers", "expected"),
+    [
+        ("codex", "claude, codex, copilot", ("codex",)),
+        ("claude-code, copilot", "claude, codex, copilot", ("claude", "copilot")),
+        ("codex, copilot", "copilot", ("copilot",)),
+    ],
+)
+def test_harness_policy_intersects_without_widening(
+    harnesses: str, providers: str, expected: tuple[str, ...]
+) -> None:
+    from planzilla.config import effective_policy
+    from tests.test_plan import policy_plan
+
+    config = Config(providers=("claude",), harness="claude-code")
+    plan = policy_plan(f"harnesses: {harnesses}\nproviders: {providers}\n")
+    policy = effective_policy(config, plan.header, "p")
+    assert policy.providers == expected
+    assert policy.harnesses == tuple(harnesses.split(", "))
+    assert config.providers == ("claude",)
+    assert config.models["planner"] == "opus"
+
+
+def test_harness_policy_inherits_providers_and_rejects_empty_intersection() -> None:
+    from planzilla.config import effective_policy
+    from tests.test_plan import policy_plan
+
+    with pytest.raises(PlanError, match="harnesses and providers have no allowed delivery"):
+        effective_policy(Config(), policy_plan("harnesses: codex\n").header, "p")
+
+
+@pytest.mark.parametrize("actual", ["claude-code", "copilot"])
+def test_coordinator_check_precedes_model_defaults(actual: str) -> None:
+    from planzilla.config import effective_policy
+    from tests.test_plan import policy_plan
+
+    plan = policy_plan("harnesses: codex\nproviders: codex\n")
+    config = Config(models={"planner": "claude::opus"})
+    with pytest.raises(PlanError, match=f"coordinator {actual} is not in harnesses"):
+        effective_policy(config, plan.header, "p", actual_harness=actual)
+
+
+def test_harness_policy_rejects_incompatible_inherited_pins() -> None:
+    from planzilla.config import effective_policy
+    from tests.test_plan import policy_plan
+
+    plan = policy_plan("harnesses: codex\nproviders: claude, codex\n")
+    with pytest.raises(PlanError, match="provider claude is not in providers") as error:
+        effective_policy(Config(models={"planner": "claude::opus"}), plan.header, "p")
+    assert error.value.line == 7
 
 
 def write_config(repo: Path, text: str) -> Path:
@@ -160,4 +213,61 @@ def test_bad_harness_is_the_choice_error() -> None:
     with pytest.raises(PlanError) as err:
         parse_config("commit: none\nharness: cursor\n", "c")
     assert err.value.line == 2
-    assert err.value.message == ("bad harness value 'cursor': expected one of claude-code, codex")
+    assert err.value.message == (
+        "bad harness value 'cursor': expected one of claude-code, codex, copilot"
+    )
+
+
+def test_portable_opus_with_codex_only_policy() -> None:
+    config = parse_config("models: planner=opus\nproviders: codex\n", "c")
+    assert config.models["planner"] == "opus"
+
+
+def test_copilot_accepts_overlapping_exact_model_families() -> None:
+    config = parse_config(
+        "models: planner=copilot::claude-sonnet-5@high, exec=copilot::gpt-5.6-sol@medium\n"
+        "providers: copilot\nharness: copilot\n",
+        "c",
+    )
+    assert config.providers == ("copilot",)
+    assert config.models["exec"] == "copilot::gpt-5.6-sol@medium"
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_explicit_route_restrictions_are_order_independent(reverse: bool) -> None:
+    lines = ["models: planner=claude::opus", "providers: codex, copilot"]
+    if reverse:
+        lines.reverse()
+    with pytest.raises(PlanError) as error:
+        parse_config("\n".join(lines), "policy.md")
+    assert error.value.line == lines.index("models: planner=claude::opus") + 1
+    assert "provider claude is not in providers" in error.value.message
+
+
+@pytest.mark.parametrize("value", ["", "exec=opus, exec=sonnet", "writer=opus", "exec=Bad"])
+def test_models_reject_empty_duplicate_unknown_and_bad_tokens(value: str) -> None:
+    with pytest.raises(PlanError):
+        parse_config(f"models: {value}\n", "c")
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "opus",
+        "opus@high",
+        "codex::opus",
+        "copilot::opus",
+        "claude::claude-sonnet-5@high",
+        "copilot::claude-sonnet-5@high",
+        "codex::gpt-5.6-sol@medium",
+        "copilot::gpt-5.6-sol@medium",
+    ],
+)
+def test_config_graph_and_set_share_token_acceptance(token: str) -> None:
+    from planzilla import state
+    from tests.test_plan import policy_plan
+
+    config = parse_config(f"providers: claude, codex, copilot\nmodels: exec={token}\n", "config.md")
+    plan = policy_plan(model=f"{token}/-")
+    nodes, _ = state.set_node(plan.nodes, "N01", None, model=f"{token}/-", facts={}, budgets=(2, 2))
+    assert config.models["exec"] == plan.nodes[0].exec_model == nodes[0].exec_model == token

@@ -660,3 +660,15 @@ def test_edit_model_bad_effort_raises() -> None:
     for bad in ("sonnet@xhigh/-", "gpt-6-astra@huge/-", "gemini-3@high/-", "gpt-6-luna@/-"):
         with pytest.raises(StateError, match="model"):
             state.set_node([node("N01")], "N01", None, model=bad, facts={}, budgets=BUDGETS)
+
+
+def test_set_accepts_route_qualified_same_family_pair() -> None:
+    changed, _ = state.set_node(
+        [node("N01")],
+        "N01",
+        None,
+        model="claude::opus/copilot::opus",
+        facts={},
+        budgets=BUDGETS,
+    )
+    assert (changed[0].exec_model, changed[0].verify_model) == ("claude::opus", "copilot::opus")
